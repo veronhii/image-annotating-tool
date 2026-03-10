@@ -1,0 +1,46 @@
+{
+  "createdAt": "2026-03-10T08:53:11.018Z",
+  "totalImages": 4,
+  "items": [
+    {
+      "originalName": "beach_03.png",
+      "relativePath": "scenes/beach_03.png",
+      "category": "scenes",
+      "annotation": {
+        "imageName": "beach_03.png",
+        "description": "",
+        "tags": []
+      }
+    },
+    {
+      "originalName": "city_01.png",
+      "relativePath": "scenes/city_01.png",
+      "category": "scenes",
+      "annotation": {
+        "imageName": "city_01.png",
+        "description": "",
+        "tags": []
+      }
+    },
+    {
+      "originalName": "forest_02.png",
+      "relativePath": "scenes/forest_02.png",
+      "category": "scenes",
+      "annotation": {
+        "imageName": "forest_02.png",
+        "description": "",
+        "tags": []
+      }
+    },
+    {
+      "originalName": "mountain_04.png",
+      "relativePath": "scenes/mountain_04.png",
+      "category": "scenes",
+      "annotation": {
+        "imageName": "mountain_04.png",
+        "description": "",
+        "tags": []
+      }
+    }
+  ]
+}

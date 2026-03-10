@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Image Annotation Workspace</title>
+  <link rel="icon" type="image/x-icon" href="favicon.ico">
+  <link rel="icon" type="image/png" href="favicon-source.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="header-actions">
+      <button id="backFromAnnotatorBtn" class="ghost-btn" type="button">Back</button>
+      <button id="openAnnotatorBtn" class="ghost-btn" type="button" disabled>Annotator</button>
+      <button id="openLibraryBtn" class="ghost-btn" type="button">Library</button>
+    </div>
+    <div class="brand">
+      <div class="brand-folder-tools">
+        <label class="theme-select" for="themeSelect">Theme</label>
+        <select id="themeSelect" class="theme-select-input" aria-label="Choose color theme">
+          <option value="light">Light</option>
+          <option value="dark">Dark</option>
+          <option value="sage-cream">Sage Cream</option>
+          <option value="rose-moss">Rose Moss</option>
+          <option value="clay-coffee">Clay Coffee</option>
+          <option value="slate-mist">Slate Mist</option>
+        </select>
+        <label class="folder-upload">
+          <input id="folderInput" type="file" webkitdirectory directory multiple>
+          <span>Load Image</span>
+        </label>
+        <span id="currentFolderLabel" class="current-folder-label">Current folder: none</span>
+      </div>
+      <div class="brand-mark" aria-hidden="true"></div>
+      <div>
+        <h1>Image Annotation Workspace</h1>
+        <p>Local-first dashboard and multi-image labeling</p>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section id="dashboardView" class="view">
+      <div class="hero-card">
+        <div>
+          <h2>Dashboard</h2>
+          <p>See image statistics, category previews, and jump to annotation in one click.</p>
+        </div>
+      </div>
+
+      <div class="stats-grid" id="statsGrid">
+        <article class="stat-card">
+          <h3>Total Images</h3>
+          <p id="statTotalImages">0</p>
+        </article>
+        <article class="stat-card">
+          <h3>Categories</h3>
+          <p id="statCategories">0</p>
+        </article>
+        <article class="stat-card">
+          <h3>Annotated</h3>
+          <p id="statAnnotated">0</p>
+        </article>
+        <article class="stat-card">
+          <h3>Completion</h3>
+          <p id="statCompletion">0%</p>
+        </article>
+      </div>
+
+      <div class="dashboard-panels">
+        <section class="panel">
+          <div class="panel-title-row">
+            <h3>Image Preview</h3>
+            <p>Latest loaded images</p>
+          </div>
+          <div id="dashboardPreviewGrid" class="dashboard-preview-grid empty-state">
+            Load a folder to see image previews.
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-title-row">
+            <h3>Categories</h3>
+            <p>Based on folder name structure</p>
+          </div>
+          <div id="categoryList" class="category-list empty-state">
+            Categories and descriptions appear after loading images.
+          </div>
+        </section>
+      </div>
+    </section>
+
+    <section id="annotatorView" class="view hidden">
+      <div class="workspace-layout">
+        <section class="image-zone">
+          <div id="comparisonGrid" class="comparison-grid empty-state">
+            Pick images from the list on the right to compare and annotate.
+          </div>
+        </section>
+
+        <aside class="annotation-sidebar">
+          <section class="sidebar-section">
+            <div class="sidebar-title-row">
+              <h3>Image Picker</h3>
+              <p>Choose up to 4 images</p>
+            </div>
+            <button id="resetPickerBtn" class="secondary-btn picker-reset-btn" type="button">Reset Selection</button>
+            <div id="imagePickerList" class="image-picker-list empty-state">
+              No images loaded.
+            </div>
+          </section>
+
+          <section class="sidebar-section">
+            <div class="sidebar-title-row">
+              <h3>Characteristics</h3>
+              <p id="activeImageLabel">No image selected</p>
+            </div>
+
+          <form class="annotation-form">
+            <label>
+              Image Name
+              <input id="fieldImageName" name="imageName" type="text" placeholder="e.g. sample_001.jpg" disabled>
+            </label>
+
+            <label>
+              Description
+              <textarea id="fieldDescription" name="description" rows="5" placeholder="Write a paragraph or short answer..." disabled></textarea>
+            </label>
+
+            <div class="tag-section">
+              <p>Tags</p>
+              <div class="tag-input-row">
+                <input id="tagInput" type="text" placeholder="Add a tag and press Enter" disabled>
+                <button id="addTagBtn" class="secondary-btn" type="button" disabled>Add Tag</button>
+              </div>
+              <div id="tagPool" class="tag-pool empty-state">No tags created yet.</div>
+            </div>
+          </form>
+          </section>
+        </aside>
+      </div>
+    </section>
+
+    <section id="libraryView" class="view hidden">
+      <div class="hero-card">
+        <div>
+          <h2>Library</h2>
+          <p>Read-only listing for all loaded images.</p>
+        </div>
+      </div>
+
+      <section class="panel">
+        <div class="panel-title-row">
+          <h3>All Images</h3>
+          <p>Click an image row to open metadata viewer</p>
+        </div>
+        <div id="libraryList" class="library-list empty-state">No images loaded.</div>
+      </section>
+    </section>
+
+    <section id="viewerView" class="view hidden">
+      <div class="hero-card">
+        <div>
+          <h2>Viewer</h2>
+          <p>Read-only image and metadata preview.</p>
+        </div>
+      </div>
+
+      <section id="viewerContent" class="viewer-layout empty-state">Select an image from Library to view details.</section>
+    </section>
+  </main>
+
+  <template id="previewCardTemplate">
+    <article class="preview-card">
+      <img alt="preview image">
+      <div class="preview-meta">
+        <p class="preview-name"></p>
+        <p class="preview-category"></p>
+      </div>
+    </article>
+  </template>
+
+  <template id="compareCardTemplate">
+    <article class="compare-card">
+      <div class="compare-card-actions">
+        <button type="button" class="zoom-out" aria-label="Zoom out">-</button>
+        <button type="button" class="zoom-in" aria-label="Zoom in">+</button>
+        <button type="button" class="zoom-reset-display" aria-label="Current zoom level">1x</button>
+        <button type="button" class="reset-view" aria-label="Reset view">Reset</button>
+        <button type="button" class="close-compare" aria-label="Close">Close</button>
+      </div>
+      <div class="compare-image-viewport">
+        <img class="compare-image" alt="comparison image">
+      </div>
+      <div class="compare-meta">
+        <p class="compare-name"></p>
+        <p class="compare-category"></p>
+      </div>
+    </article>
+  </template>
+
+  <template id="libraryItemTemplate">
+    <article class="library-item">
+      <img alt="library image">
+      <div class="library-meta">
+        <p class="library-name"></p>
+        <p class="library-path"></p>
+        <p class="library-tags"></p>
+      </div>
+    </article>
+  </template>
+  <script src="app.js"></script>
+</body>
+</html>
