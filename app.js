@@ -2,6 +2,38 @@ const STORAGE_KEY = "annotationWorkspaceData";
 const THEME_KEY = "annotationWorkspaceTheme";
 const DEFAULT_THEME = "light";
 const AVAILABLE_THEMES = new Set(["light", "dark", "sage-cream", "rose-moss", "clay-coffee", "slate-mist"]);
+const MORPHOLOGY_QUESTIONS = [
+  {
+    key: "shape",
+    label: "Shape",
+    options: ["irregular", "regular"],
+  },
+  {
+    key: "opacity",
+    label: "Opacity",
+    options: ["opaque", "translucent", "transparent"],
+  },
+  {
+    key: "color",
+    label: "Color",
+    options: ["clear", "white", "cream", "yellow", "orange", "red", "pink", "green", "blue", "brown", "black"],
+  },
+  {
+    key: "elevation",
+    label: "Elevation",
+    options: ["flat", "raised", "convex", "umbonate", "crateriform"],
+  },
+  {
+    key: "margin",
+    label: "Margin",
+    options: ["entire", "undulate", "lobate", "filamentous", "curled"],
+  },
+  {
+    key: "surface",
+    label: "Surface Texture",
+    options: ["smooth", "rough", "wrinkled", "mucoid", "dry"],
+  },
+];
 
 const state = {
   images: [],
@@ -11,11 +43,11 @@ const state = {
   viewerImageId: null,
   currentView: "dashboard",
   autoSaveTimer: null,
-  knownTags: new Set(),
   dataFileHandle: null,
   imageZoomById: new Map(),
   imagePanById: new Map(),
   dragState: null,
+  customMorphologyOptions: {},
 };
 
 const els = {
@@ -41,9 +73,7 @@ const els = {
   activeImageLabel: document.getElementById("activeImageLabel"),
   fieldImageName: document.getElementById("fieldImageName"),
   fieldDescription: document.getElementById("fieldDescription"),
-  tagInput: document.getElementById("tagInput"),
-  addTagBtn: document.getElementById("addTagBtn"),
-  tagPool: document.getElementById("tagPool"),
+  morphologySections: document.getElementById("morphologySections"),
   libraryList: document.getElementById("libraryList"),
   viewerContent: document.getElementById("viewerContent"),
   previewCardTemplate: document.getElementById("previewCardTemplate"),
@@ -68,16 +98,8 @@ async function initialize() {
       void saveCurrentAnnotation();
     }
   });
-  els.addTagBtn.addEventListener("click", addTagFromInput);
-  els.tagInput.addEventListener("keydown", (event) => {
-    if (event.key === "Enter") {
-      event.preventDefault();
-      addTagFromInput();
-    }
-  });
-
   state.dataFileHandle = await readDataFileHandle();
-  renderTagPool();
+  renderMorphologySections();
   showView("dashboard");
   refreshAll();
 }
@@ -138,7 +160,7 @@ function hydrateImagesFromSource(sourceItems) {
       annotation: {
         imageName: item.file.name,
         description: "",
-        tags: [],
+        morphology: createEmptyMorphologyAnswers(),
       },
     };
   });
@@ -147,7 +169,6 @@ function hydrateImagesFromSource(sourceItems) {
   state.selectedForComparison = [];
   state.activeImageId = null;
   state.viewerImageId = null;
-  state.knownTags = new Set();
 
   if (state.images.length > 0) {
     addToComparison(state.images[0].id);
@@ -161,8 +182,20 @@ async function restoreMetadataForLoadedImages() {
   const payload = chooseNewestPayload(localData, fileData);
 
   if (!payload || !Array.isArray(payload.items)) {
-    renderTagPool();
+    renderMorphologySections();
     return;
+  }
+
+  if (payload.customMorphologyOptions && typeof payload.customMorphologyOptions === "object") {
+    state.customMorphologyOptions = {};
+    MORPHOLOGY_QUESTIONS.forEach((q) => {
+      const extras = payload.customMorphologyOptions[q.key];
+      if (Array.isArray(extras)) {
+        state.customMorphologyOptions[q.key] = extras
+          .map(normalizeTag)
+          .filter((v) => v && !q.options.includes(v));
+      }
+    });
   }
 
   const map = new Map(payload.items.map((item) => [item.relativePath, item]));
@@ -175,11 +208,13 @@ async function restoreMetadataForLoadedImages() {
 
     image.annotation.imageName = image.file.name;
     image.annotation.description = saved.annotation.description || "";
-    image.annotation.tags = normalizeTags(saved.annotation.tags || []);
-    image.annotation.tags.forEach((tag) => state.knownTags.add(tag));
+    image.annotation.morphology = mergeMorphologyAnswers(
+      createEmptyMorphologyAnswers(),
+      saved.annotation.morphology || tagsArrayToMorphology(saved.annotation.tags || [])
+    );
   });
 
-  renderTagPool(getImageById(state.activeImageId)?.annotation.tags || []);
+  renderMorphologySections(getImageById(state.activeImageId)?.annotation.morphology || null);
 }
 
 function chooseNewestPayload(first, second) {
@@ -225,23 +260,73 @@ async function readDataFileMetadata() {
 }
 
 function normalizeTag(tag) {
-  return String(tag).trim().toLowerCase();
+  return String(tag || "").trim().toLowerCase();
 }
 
-function normalizeTags(tags) {
-  const unique = new Set();
-  const normalized = [];
+function getAllOptions(questionKey) {
+  const base = MORPHOLOGY_QUESTIONS.find((q) => q.key === questionKey)?.options || [];
+  const custom = state.customMorphologyOptions[questionKey] || [];
+  return [...base, ...custom];
+}
 
-  tags.forEach((tag) => {
-    const value = normalizeTag(tag);
-    if (!value || unique.has(value)) {
-      return;
-    }
-    unique.add(value);
-    normalized.push(value);
+function createEmptyMorphologyAnswers() {
+  const answers = {};
+  MORPHOLOGY_QUESTIONS.forEach((question) => {
+    answers[question.key] = "";
+  });
+  return answers;
+}
+
+function mergeMorphologyAnswers(base, incoming) {
+  const merged = { ...base };
+  if (!incoming || typeof incoming !== "object") {
+    return merged;
+  }
+
+  MORPHOLOGY_QUESTIONS.forEach((question) => {
+    const selected = normalizeTag(incoming[question.key]);
+    merged[question.key] = getAllOptions(question.key).includes(selected) ? selected : "";
   });
 
-  return normalized;
+  return merged;
+}
+
+function tagsArrayToMorphology(tags) {
+  const fromTags = createEmptyMorphologyAnswers();
+  const normalized = tags
+    .map((tag) => normalizeTag(tag))
+    .filter(Boolean);
+
+  MORPHOLOGY_QUESTIONS.forEach((question) => {
+    const matched = normalized.find((tag) => question.options.includes(tag));
+    fromTags[question.key] = matched || "";
+  });
+
+  return fromTags;
+}
+
+function morphologyToLegacyTags(morphology) {
+  return MORPHOLOGY_QUESTIONS
+    .map((question) => normalizeTag(morphology?.[question.key]))
+    .filter(Boolean);
+}
+
+function getMorphologySummary(image) {
+  if (!image || !image.annotation || !image.annotation.morphology) {
+    return "Morphology: -";
+  }
+
+  const parts = MORPHOLOGY_QUESTIONS
+    .map((question) => {
+      const value = normalizeTag(image.annotation.morphology[question.key]);
+      if (!value) {
+        return null;
+      }
+      return `${question.label}: ${value}`;
+    })
+    .filter(Boolean);
+
+  return parts.length > 0 ? `Morphology: ${parts.join(" | ")}` : "Morphology: -";
 }
 
 function clearObjectUrls() {
@@ -323,7 +408,8 @@ function renderStats() {
 
 function isAnnotated(image) {
   const annotation = image.annotation;
-  return Boolean(annotation.description.trim() || annotation.tags.length > 0);
+  const hasMorphology = morphologyToLegacyTags(annotation.morphology).length > 0;
+  return Boolean(annotation.description.trim() || hasMorphology);
 }
 
 function renderDashboardPreview() {
@@ -529,6 +615,7 @@ function renderComparisonGrid() {
     });
 
     viewport.addEventListener("wheel", (event) => {
+      if (!event.altKey) return;
       event.preventDefault();
       event.stopPropagation();
       const delta = event.deltaY < 0 ? 0.1 : -0.1;
@@ -668,94 +755,119 @@ function renderActiveAnnotation() {
 
   els.fieldImageName.disabled = true;
   els.fieldDescription.disabled = disabled;
-  els.tagInput.disabled = disabled;
-  els.addTagBtn.disabled = disabled;
 
   if (!image) {
     els.activeImageLabel.textContent = "No image selected";
     els.fieldImageName.value = "";
     els.fieldDescription.value = "";
-    renderTagPool();
+    renderMorphologySections();
     return;
   }
 
   els.activeImageLabel.textContent = image.relativePath;
   els.fieldImageName.value = image.file.name;
   els.fieldDescription.value = image.annotation.description;
-  renderTagPool(image.annotation.tags);
+  renderMorphologySections(image.annotation.morphology);
 }
 
-function renderTagPool(activeTags = []) {
-  els.tagPool.innerHTML = "";
+function renderMorphologySections(activeAnswers = null) {
+  els.morphologySections.innerHTML = "";
 
-  const tags = Array.from(state.knownTags).sort((a, b) => a.localeCompare(b));
-  if (tags.length === 0) {
-    els.tagPool.className = "tag-pool empty-state";
-    els.tagPool.textContent = "No tags created yet.";
+  if (!state.activeImageId || !activeAnswers) {
+    els.morphologySections.className = "morphology-sections empty-state";
+    els.morphologySections.textContent = "No image selected.";
     return;
   }
 
-  els.tagPool.className = "tag-pool";
-  tags.forEach((tag) => {
-    const chip = document.createElement("button");
-    chip.type = "button";
-    chip.className = "tag-chip";
-    chip.textContent = tag;
+  els.morphologySections.className = "morphology-sections";
+  MORPHOLOGY_QUESTIONS.forEach((question) => {
+    const section = document.createElement("div");
+    section.className = "morphology-group";
 
-    if (activeTags.includes(tag)) {
-      chip.classList.add("selected");
-    }
+    const title = document.createElement("p");
+    title.className = "morphology-group-title";
+    title.textContent = question.label;
 
-    chip.disabled = !state.activeImageId;
-    chip.addEventListener("click", () => {
-      toggleTag(tag);
+    const optionsRow = document.createElement("div");
+    optionsRow.className = "morphology-option-row";
+
+    const selected = normalizeTag(activeAnswers[question.key]);
+    getAllOptions(question.key).forEach((option) => {
+      const optionButton = document.createElement("button");
+      optionButton.type = "button";
+      optionButton.className = "morphology-option";
+      optionButton.textContent = option;
+
+      if (selected === option) {
+        optionButton.classList.add("selected");
+      }
+
+      optionButton.addEventListener("click", () => {
+        selectMorphologyOption(question.key, option);
+      });
+
+      optionsRow.appendChild(optionButton);
     });
 
-    els.tagPool.appendChild(chip);
+    const addRow = document.createElement("div");
+    addRow.className = "morphology-add-row";
+
+    const addInput = document.createElement("input");
+    addInput.type = "text";
+    addInput.className = "morphology-add-input";
+    addInput.placeholder = "New option…";
+
+    const addBtn = document.createElement("button");
+    addBtn.type = "button";
+    addBtn.className = "morphology-add-btn";
+    addBtn.textContent = "+";
+
+    const doAdd = () => {
+      const value = normalizeTag(addInput.value);
+      if (!value) return;
+      if (getAllOptions(question.key).includes(value)) {
+        addInput.value = "";
+        return;
+      }
+      if (!state.customMorphologyOptions[question.key]) {
+        state.customMorphologyOptions[question.key] = [];
+      }
+      state.customMorphologyOptions[question.key].push(value);
+      addInput.value = "";
+      renderMorphologySections(getImageById(state.activeImageId)?.annotation.morphology || null);
+      void persistAnnotationData();
+    };
+
+    addBtn.addEventListener("click", doAdd);
+    addInput.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        doAdd();
+      }
+    });
+
+    addRow.append(addInput, addBtn);
+    section.append(title, optionsRow, addRow);
+    els.morphologySections.appendChild(section);
   });
 }
 
-function addTagFromInput() {
+function selectMorphologyOption(sectionKey, option) {
   const image = getImageById(state.activeImageId);
   if (!image) {
     return;
   }
 
-  const tag = normalizeTag(els.tagInput.value);
-  if (!tag) {
+  const question = MORPHOLOGY_QUESTIONS.find((item) => item.key === sectionKey);
+  const normalizedOption = normalizeTag(option);
+  if (!question || !getAllOptions(sectionKey).includes(normalizedOption)) {
     return;
   }
 
-  state.knownTags.add(tag);
-  if (!image.annotation.tags.includes(tag)) {
-    image.annotation.tags.push(tag);
-  }
+  const current = normalizeTag(image.annotation.morphology[sectionKey]);
+  image.annotation.morphology[sectionKey] = current === normalizedOption ? "" : normalizedOption;
 
-  image.annotation.tags = normalizeTags(image.annotation.tags);
-  els.tagInput.value = "";
-  renderTagPool(image.annotation.tags);
-  updateActionButtons();
-  void saveCurrentAnnotation();
-}
-
-function toggleTag(tag) {
-  const image = getImageById(state.activeImageId);
-  if (!image) {
-    return;
-  }
-
-  const normalized = normalizeTag(tag);
-  const tags = normalizeTags(image.annotation.tags);
-  const index = tags.indexOf(normalized);
-
-  if (index >= 0) {
-    tags.splice(index, 1);
-  } else {
-    tags.push(normalized);
-  }
-
-  image.annotation.tags = normalizeTags(tags);
-  renderTagPool(image.annotation.tags);
+  renderMorphologySections(image.annotation.morphology);
   updateActionButtons();
   void saveCurrentAnnotation();
 }
@@ -768,13 +880,15 @@ async function saveCurrentAnnotation() {
 
   image.annotation.imageName = image.file.name;
   image.annotation.description = els.fieldDescription.value;
-  image.annotation.tags = normalizeTags(image.annotation.tags);
-  image.annotation.tags.forEach((tag) => state.knownTags.add(tag));
+  image.annotation.morphology = mergeMorphologyAnswers(
+    createEmptyMorphologyAnswers(),
+    image.annotation.morphology
+  );
 
   renderStats();
   renderImagePicker();
   renderComparisonGrid();
-  renderTagPool(image.annotation.tags);
+  renderMorphologySections(image.annotation.morphology);
   renderLibraryList();
   renderViewer();
   updateActionButtons();
@@ -807,15 +921,13 @@ function renderLibraryList() {
     const img = fragment.querySelector("img");
     const name = fragment.querySelector(".library-name");
     const path = fragment.querySelector(".library-path");
-    const tags = fragment.querySelector(".library-tags");
+    const morphology = fragment.querySelector(".library-tags");
 
     img.src = image.objectUrl;
     img.alt = image.file.name;
     name.textContent = image.annotation.imageName || image.file.name;
     path.textContent = image.relativePath;
-    tags.textContent = image.annotation.tags.length > 0
-      ? `Tags: ${normalizeTags(image.annotation.tags).join(", ")}`
-      : "Tags: -";
+    morphology.textContent = getMorphologySummary(image);
 
     root.addEventListener("click", () => {
       state.viewerImageId = image.id;
@@ -842,7 +954,7 @@ function renderViewer() {
     return;
   }
 
-  const tags = normalizeTags(image.annotation.tags);
+  const morphologyTags = morphologyToLegacyTags(image.annotation.morphology);
   const safeDescription = escapeHtml(image.annotation.description || "-");
 
   els.viewerContent.className = "viewer-layout";
@@ -874,8 +986,8 @@ function renderViewer() {
           <dd>${escapeHtml(image.annotation.imageName || image.file.name)}</dd>
         </div>
         <div>
-          <dt>Tags</dt>
-          <dd>${tags.length > 0 ? escapeHtml(tags.join(", ")) : "-"}</dd>
+          <dt>Morphology</dt>
+          <dd>${morphologyTags.length > 0 ? escapeHtml(getMorphologySummary(image).replace("Morphology: ", "")) : "-"}</dd>
         </div>
         <div>
           <dt>Description</dt>
@@ -914,6 +1026,7 @@ function setupViewerInteractions(imageId) {
   };
 
   viewport.addEventListener("wheel", (event) => {
+    if (!event.altKey) return;
     event.preventDefault();
     event.stopPropagation();
     zoomViewerBy(event.deltaY < 0 ? 0.1 : -0.1);
@@ -967,6 +1080,7 @@ function buildAnnotationPayload() {
   return {
     createdAt: new Date().toISOString(),
     totalImages: state.images.length,
+    customMorphologyOptions: state.customMorphologyOptions,
     items: state.images.map((image) => ({
       originalName: image.file.name,
       relativePath: image.relativePath,
@@ -974,7 +1088,8 @@ function buildAnnotationPayload() {
       annotation: {
         imageName: image.annotation.imageName,
         description: image.annotation.description,
-        tags: normalizeTags(image.annotation.tags),
+        morphology: mergeMorphologyAnswers(createEmptyMorphologyAnswers(), image.annotation.morphology),
+        tags: morphologyToLegacyTags(image.annotation.morphology),
       },
     })),
   };

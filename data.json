@@ -1,6 +1,15 @@
 {
-  "createdAt": "2026-03-10T08:53:11.018Z",
+  "createdAt": "2026-03-11T08:49:43.664Z",
   "totalImages": 4,
+  "customMorphologyOptions": {
+    "shape": [
+      "different",
+      "excellent"
+    ],
+    "color": [
+      "hitam"
+    ]
+  },
   "items": [
     {
       "originalName": "beach_03.png",
@@ -9,7 +18,22 @@
       "annotation": {
         "imageName": "beach_03.png",
         "description": "",
-        "tags": []
+        "morphology": {
+          "shape": "irregular",
+          "opacity": "transparent",
+          "color": "black",
+          "elevation": "flat",
+          "margin": "lobate",
+          "surface": "mucoid"
+        },
+        "tags": [
+          "irregular",
+          "transparent",
+          "black",
+          "flat",
+          "lobate",
+          "mucoid"
+        ]
       }
     },
     {
@@ -19,6 +43,14 @@
       "annotation": {
         "imageName": "city_01.png",
         "description": "",
+        "morphology": {
+          "shape": "",
+          "opacity": "",
+          "color": "",
+          "elevation": "",
+          "margin": "",
+          "surface": ""
+        },
         "tags": []
       }
     },
@@ -29,6 +61,14 @@
       "annotation": {
         "imageName": "forest_02.png",
         "description": "",
+        "morphology": {
+          "shape": "",
+          "opacity": "",
+          "color": "",
+          "elevation": "",
+          "margin": "",
+          "surface": ""
+        },
         "tags": []
       }
     },
@@ -39,7 +79,17 @@
       "annotation": {
         "imageName": "mountain_04.png",
         "description": "",
-        "tags": []
+        "morphology": {
+          "shape": "different",
+          "opacity": "",
+          "color": "",
+          "elevation": "",
+          "margin": "",
+          "surface": ""
+        },
+        "tags": [
+          "different"
+        ]
       }
     }
   ]
