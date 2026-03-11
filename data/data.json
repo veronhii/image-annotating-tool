@@ -1,0 +1,230 @@
+{
+  "createdAt": "2026-03-11T11:28:50.707Z",
+  "totalImages": 12,
+  "customMorphologyOptions": {},
+  "items": [
+    {
+      "originalName": "cat_01.png",
+      "relativePath": "animals/cat_01.png",
+      "category": "animals",
+      "annotation": {
+        "imageName": "cat_01.png",
+        "description": "",
+        "morphology": {
+          "shape": "",
+          "opacity": "",
+          "color": "",
+          "elevation": "",
+          "margin": "",
+          "surface": ""
+        },
+        "tags": []
+      }
+    },
+    {
+      "originalName": "fish_04.png",
+      "relativePath": "anddqimals/fish_04.png",
+      "category": "anddqimals",
+      "annotation": {
+        "imageName": "fish_04.png",
+        "description": "",
+        "morphology": {
+          "shape": "",
+          "opacity": "",
+          "color": "",
+          "elevation": "",
+          "margin": "",
+          "surface": ""
+        },
+        "tags": []
+      }
+    },
+    {
+      "originalName": "sqsqsqs.png",
+      "relativePath": "animals/sqsqsqs.png",
+      "category": "animals",
+      "annotation": {
+        "imageName": "sqsqsqs.png",
+        "description": "",
+        "morphology": {
+          "shape": "",
+          "opacity": "",
+          "color": "",
+          "elevation": "",
+          "margin": "",
+          "surface": ""
+        },
+        "tags": []
+      }
+    },
+    {
+      "originalName": "this_is_dog_02.png",
+      "relativePath": "animals/this_is_dog_02.png",
+      "category": "animals",
+      "annotation": {
+        "imageName": "this_is_dog_02.png",
+        "description": "",
+        "morphology": {
+          "shape": "",
+          "opacity": "",
+          "color": "",
+          "elevation": "",
+          "margin": "",
+          "surface": ""
+        },
+        "tags": []
+      }
+    },
+    {
+      "originalName": "beach_03.png",
+      "relativePath": "scenes/beach_03.png",
+      "category": "scenes",
+      "annotation": {
+        "imageName": "beach_03.png",
+        "description": "",
+        "morphology": {
+          "shape": "",
+          "opacity": "",
+          "color": "",
+          "elevation": "",
+          "margin": "",
+          "surface": ""
+        },
+        "tags": []
+      }
+    },
+    {
+      "originalName": "city_01.png",
+      "relativePath": "scenes/city_01.png",
+      "category": "scenes",
+      "annotation": {
+        "imageName": "city_01.png",
+        "description": "",
+        "morphology": {
+          "shape": "",
+          "opacity": "",
+          "color": "",
+          "elevation": "",
+          "margin": "",
+          "surface": ""
+        },
+        "tags": []
+      }
+    },
+    {
+      "originalName": "forest_02.png",
+      "relativePath": "scenes/forest_02.png",
+      "category": "scenes",
+      "annotation": {
+        "imageName": "forest_02.png",
+        "description": "",
+        "morphology": {
+          "shape": "",
+          "opacity": "",
+          "color": "",
+          "elevation": "",
+          "margin": "",
+          "surface": ""
+        },
+        "tags": []
+      }
+    },
+    {
+      "originalName": "mountain_04.png",
+      "relativePath": "scenes/mountain_04.png",
+      "category": "scenes",
+      "annotation": {
+        "imageName": "mountain_04.png",
+        "description": "",
+        "morphology": {
+          "shape": "",
+          "opacity": "",
+          "color": "",
+          "elevation": "",
+          "margin": "",
+          "surface": ""
+        },
+        "tags": []
+      }
+    },
+    {
+      "originalName": "bike_1232132132132103.png",
+      "relativePath": "vehicles/bike_1232132132132103.png",
+      "category": "vehicles",
+      "annotation": {
+        "imageName": "bike_1232132132132103.png",
+        "description": "",
+        "morphology": {
+          "shape": "",
+          "opacity": "",
+          "color": "",
+          "elevation": "",
+          "margin": "",
+          "surface": ""
+        },
+        "tags": []
+      }
+    },
+    {
+      "originalName": "bus_02.png",
+      "relativePath": "vehicles/bus_02.png",
+      "category": "vehicles",
+      "annotation": {
+        "imageName": "bus_02.png",
+        "description": "",
+        "morphology": {
+          "shape": "",
+          "opacity": "",
+          "color": "",
+          "elevation": "",
+          "margin": "",
+          "surface": ""
+        },
+        "tags": []
+      }
+    },
+    {
+      "originalName": "car_01.png",
+      "relativePath": "vehicles/car_01.png",
+      "category": "vehicles",
+      "annotation": {
+        "imageName": "car_01.png",
+        "description": "",
+        "morphology": {
+          "shape": "",
+          "opacity": "",
+          "color": "",
+          "elevation": "",
+          "margin": "",
+          "surface": ""
+        },
+        "tags": []
+      }
+    },
+    {
+      "originalName": "train_0adasdsadcx4.png",
+      "relativePath": "vehicles/train_0adasdsadcx4.png",
+      "category": "vehicles",
+      "annotation": {
+        "imageName": "train_0adasdsadcx4.png",
+        "description": "c",
+        "morphology": {
+          "shape": "regular",
+          "opacity": "translucent",
+          "color": "green",
+          "elevation": "convex",
+          "margin": "undulate",
+          "surface": "rough"
+        },
+        "tags": [
+          "regular",
+          "translucent",
+          "green",
+          "convex",
+          "undulate",
+          "rough"
+        ]
+      }
+    }
+  ]
+}

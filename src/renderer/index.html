@@ -74,11 +74,11 @@
       <div class="dashboard-panels">
         <section class="panel">
           <div class="panel-title-row">
-            <h3>Image Preview</h3>
-            <p>Latest loaded images</p>
+            <h3>Annotation Insights</h3>
+            <p>Progress and category completion</p>
           </div>
-          <div id="dashboardPreviewGrid" class="dashboard-preview-grid empty-state">
-            Load a folder to see image previews.
+          <div id="dashboardInsights" class="dashboard-insights empty-state">
+            Load a folder to see annotation insights.
           </div>
         </section>
 
@@ -122,13 +122,13 @@
 
           <form class="annotation-form">
             <label>
-              Image Name
-              <input id="fieldImageName" name="imageName" type="text" placeholder="e.g. sample_001.jpg" disabled>
+              Relative Path
+              <input id="fieldImageName" name="relativePath" type="text" placeholder="e.g. animals/cat_01.png" disabled>
             </label>
 
             <label>
-              Description
-              <textarea id="fieldDescription" name="description" rows="5" placeholder="Write a paragraph or short answer..." disabled></textarea>
+              Remarks
+              <textarea id="fieldDescription" name="description" rows="5" placeholder="Write remarks..." disabled></textarea>
             </label>
 
             <div class="tag-section">
@@ -169,16 +169,6 @@
       <section id="viewerContent" class="viewer-layout empty-state">Select an image from Library to view details.</section>
     </section>
   </main>
-
-  <template id="previewCardTemplate">
-    <article class="preview-card">
-      <img alt="preview image">
-      <div class="preview-meta">
-        <p class="preview-name"></p>
-        <p class="preview-category"></p>
-      </div>
-    </article>
-  </template>
 
   <template id="compareCardTemplate">
     <article class="compare-card">

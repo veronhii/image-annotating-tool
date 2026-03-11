@@ -37,6 +37,8 @@ const MORPHOLOGY_QUESTIONS = [
 
 const state = {
   images: [],
+  loadedFolderAbsolutePath: "",
+  folderDialogOpen: false,
   categories: new Map(),
   selectedForComparison: [],
   activeImageId: null,
@@ -66,7 +68,7 @@ const els = {
   statCategories: document.getElementById("statCategories"),
   statAnnotated: document.getElementById("statAnnotated"),
   statCompletion: document.getElementById("statCompletion"),
-  dashboardPreviewGrid: document.getElementById("dashboardPreviewGrid"),
+  dashboardInsights: document.getElementById("dashboardInsights"),
   categoryList: document.getElementById("categoryList"),
   imagePickerList: document.getElementById("imagePickerList"),
   comparisonGrid: document.getElementById("comparisonGrid"),
@@ -76,7 +78,6 @@ const els = {
   morphologySections: document.getElementById("morphologySections"),
   libraryList: document.getElementById("libraryList"),
   viewerContent: document.getElementById("viewerContent"),
-  previewCardTemplate: document.getElementById("previewCardTemplate"),
   compareCardTemplate: document.getElementById("compareCardTemplate"),
   libraryItemTemplate: document.getElementById("libraryItemTemplate"),
 };
@@ -86,12 +87,19 @@ void initialize();
 async function initialize() {
   initializeTheme();
 
+  els.folderInput.addEventListener("click", onFolderInputClick);
   els.folderInput.addEventListener("change", onFolderLoad);
   els.openAnnotatorBtn.addEventListener("click", () => showView("annotator"));
   els.openLibraryBtn.addEventListener("click", () => showView("library"));
   els.themeSelect.addEventListener("change", onThemeChange);
   els.backFromAnnotatorBtn.addEventListener("click", onBackButtonClick);
   els.resetPickerBtn.addEventListener("click", resetImagePickerSelection);
+  els.fieldImageName.addEventListener("input", onRelativePathInput);
+  els.fieldImageName.addEventListener("blur", () => {
+    if (state.activeImageId) {
+      void onRelativePathBlurRename();
+    }
+  });
   els.fieldDescription.addEventListener("input", onDescriptionInputAutosave);
   els.fieldDescription.addEventListener("blur", () => {
     if (state.activeImageId) {
@@ -102,6 +110,26 @@ async function initialize() {
   renderMorphologySections();
   showView("dashboard");
   refreshAll();
+}
+
+async function onFolderInputClick(event) {
+  if (!window.desktopBridge?.pickImageFolder) {
+    return;
+  }
+
+  event.preventDefault();
+  event.stopPropagation();
+
+  if (state.folderDialogOpen) {
+    return;
+  }
+
+  state.folderDialogOpen = true;
+  try {
+    await loadFolderFromDesktopPicker();
+  } finally {
+    state.folderDialogOpen = false;
+  }
 }
 
 function initializeTheme() {
@@ -125,11 +153,63 @@ function applyTheme(theme) {
 }
 
 async function onFolderLoad(event) {
+  // In desktop mode, folder loading is handled by native picker in onFolderInputClick.
+  if (window.desktopBridge?.pickImageFolder) {
+    event.target.value = "";
+    return;
+  }
+
   const files = Array.from(event.target.files || []);
   const sourceItems = files
     .filter((file) => file.type.startsWith("image/"))
-    .map((file) => ({ file, relativePath: file.webkitRelativePath || file.name }));
+    .map((file) => ({
+      file,
+      relativePath: file.webkitRelativePath || file.name,
+      absolutePath: file.path || "",
+    }));
 
+  // If picker is canceled, keep current loaded folder/data untouched.
+  if (sourceItems.length === 0) {
+    return;
+  }
+
+  await applyLoadedSourceItems(sourceItems);
+}
+
+async function loadFolderFromDesktopPicker() {
+  const result = await window.desktopBridge.pickImageFolder();
+  if (!result || result.canceled) {
+    return;
+  }
+
+  if (!result.ok || !Array.isArray(result.items)) {
+    window.alert(result?.error || "Failed to load folder.");
+    return;
+  }
+
+  const sourceItems = result.items.map((item) => ({
+    file: fileFromDataUrl(item.name, item.dataUrl, item.mimeType),
+    relativePath: item.relativePath,
+    absolutePath: item.absolutePath || "",
+  }));
+
+  await applyLoadedSourceItems(sourceItems);
+}
+
+function fileFromDataUrl(fileName, dataUrl, mimeType) {
+  const base64 = String(dataUrl || "").split(",")[1] || "";
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+
+  return new File([bytes], String(fileName || "image.bin"), {
+    type: String(mimeType || "application/octet-stream"),
+  });
+}
+
+async function applyLoadedSourceItems(sourceItems) {
   const folderName = sourceItems.length > 0
     ? String(sourceItems[0].relativePath).split("/")[0]
     : "none";
@@ -143,6 +223,8 @@ async function onFolderLoad(event) {
 function hydrateImagesFromSource(sourceItems) {
   clearObjectUrls();
 
+  state.loadedFolderAbsolutePath = deriveLoadedFolderAbsolutePath(sourceItems);
+
   state.images = sourceItems.map((item, index) => {
     const pathParts = item.relativePath.split("/");
     const category = pathParts.length > 1 ? pathParts[pathParts.length - 2] : "uncategorized";
@@ -154,6 +236,7 @@ function hydrateImagesFromSource(sourceItems) {
     return {
       id,
       file: item.file,
+      absolutePath: item.absolutePath || buildAbsolutePathFromRoot(state.loadedFolderAbsolutePath, item.relativePath),
       objectUrl,
       relativePath: item.relativePath,
       category,
@@ -174,6 +257,39 @@ function hydrateImagesFromSource(sourceItems) {
     addToComparison(state.images[0].id);
     state.viewerImageId = state.images[0].id;
   }
+}
+
+function normalizeOsPath(pathValue) {
+  return String(pathValue || "").replaceAll("/", "\\");
+}
+
+function deriveLoadedFolderAbsolutePath(sourceItems) {
+  const sample = sourceItems.find((item) => item.absolutePath && item.relativePath);
+  if (!sample) {
+    return "";
+  }
+
+  const absolutePath = normalizeOsPath(sample.absolutePath);
+  const relativePath = normalizeOsPath(sample.relativePath);
+  if (!relativePath || !absolutePath.endsWith(relativePath)) {
+    return "";
+  }
+
+  const root = absolutePath.slice(0, absolutePath.length - relativePath.length).replace(/[\\/]+$/, "");
+  return root;
+}
+
+function buildAbsolutePathFromRoot(rootPath, relativePath) {
+  if (!rootPath) {
+    return "";
+  }
+
+  const rel = normalizeOsPath(relativePath).replace(/^[\\/]+/, "");
+  if (!rel) {
+    return "";
+  }
+
+  return `${rootPath}\\${rel}`;
 }
 
 async function restoreMetadataForLoadedImages() {
@@ -198,15 +314,26 @@ async function restoreMetadataForLoadedImages() {
     });
   }
 
-  const map = new Map(payload.items.map((item) => [item.relativePath, item]));
+  const byRelativePath = new Map(payload.items.map((item) => [item.relativePath, item]));
+  const byName = new Map();
+  payload.items.forEach((item) => {
+    const candidate = normalizeTag(item.annotation?.imageName || item.originalName);
+    if (candidate && !byName.has(candidate)) {
+      byName.set(candidate, item);
+    }
+  });
 
   state.images.forEach((image) => {
-    const saved = map.get(image.relativePath);
+    const currentName = normalizeTag(getFileNameFromRelativePath(image.relativePath));
+    const saved = byRelativePath.get(image.relativePath) || byName.get(currentName);
     if (!saved || !saved.annotation) {
       return;
     }
 
     image.annotation.imageName = image.file.name;
+    if (saved.annotation.imageName) {
+      image.annotation.imageName = saved.annotation.imageName;
+    }
     image.annotation.description = saved.annotation.description || "";
     image.annotation.morphology = mergeMorphologyAnswers(
       createEmptyMorphologyAnswers(),
@@ -261,6 +388,27 @@ async function readDataFileMetadata() {
 
 function normalizeTag(tag) {
   return String(tag || "").trim().toLowerCase();
+}
+
+function normalizeRelativePath(pathValue) {
+  return String(pathValue || "")
+    .trim()
+    .replaceAll("\\", "/")
+    .replace(/\/{2,}/g, "/")
+    .replace(/^\//, "");
+}
+
+function getFileNameFromRelativePath(relativePath) {
+  const normalized = normalizeRelativePath(relativePath);
+  const parts = normalized.split("/").filter(Boolean);
+  return parts[parts.length - 1] || "";
+}
+
+function getParentRelativePath(relativePath) {
+  const normalized = normalizeRelativePath(relativePath);
+  const parts = normalized.split("/").filter(Boolean);
+  parts.pop();
+  return parts.join("/");
 }
 
 function getAllOptions(questionKey) {
@@ -384,7 +532,7 @@ function onBackButtonClick() {
 
 function refreshAll() {
   renderStats();
-  renderDashboardPreview();
+  renderDashboardInsights();
   renderCategories();
   renderImagePicker();
   renderComparisonGrid();
@@ -397,8 +545,12 @@ function refreshAll() {
 function renderStats() {
   const totalImages = state.images.length;
   const totalCategories = state.categories.size;
-  const annotatedCount = state.images.filter(isAnnotated).length;
-  const completion = totalImages === 0 ? 0 : Math.round((annotatedCount / totalImages) * 100);
+  const annotatedCount = state.images.filter((image) => getImageAnnotationPercentage(image) > 0).length;
+  const completion = totalImages === 0
+    ? 0
+    : Math.round(
+      state.images.reduce((sum, image) => sum + getImageAnnotationPercentage(image), 0) / totalImages
+    );
 
   els.statTotalImages.textContent = String(totalImages);
   els.statCategories.textContent = String(totalCategories);
@@ -407,29 +559,87 @@ function renderStats() {
 }
 
 function isAnnotated(image) {
-  const annotation = image.annotation;
-  const hasMorphology = morphologyToLegacyTags(annotation.morphology).length > 0;
-  return Boolean(annotation.description.trim() || hasMorphology);
+  return getImageAnnotationPercentage(image) > 0;
 }
 
-function renderDashboardPreview() {
-  els.dashboardPreviewGrid.innerHTML = "";
+function getImageAnnotationPercentage(image) {
+  const totalCriteria = MORPHOLOGY_QUESTIONS.length + 1; // all morphology sections + remarks
+  if (totalCriteria <= 0) {
+    return 0;
+  }
+
+  const morphologyCount = MORPHOLOGY_QUESTIONS.filter(
+    (question) => normalizeTag(image.annotation?.morphology?.[question.key]).length > 0
+  ).length;
+  const hasRemarks = String(image.annotation?.description || "").trim().length > 0 ? 1 : 0;
+  const completedCriteria = morphologyCount + hasRemarks;
+  return Math.round((completedCriteria / totalCriteria) * 100);
+}
+
+function renderDashboardInsights() {
+  els.dashboardInsights.innerHTML = "";
 
   if (state.images.length === 0) {
-    els.dashboardPreviewGrid.className = "dashboard-preview-grid empty-state";
-    els.dashboardPreviewGrid.textContent = "Load a folder to see image previews.";
+    els.dashboardInsights.className = "dashboard-insights empty-state";
+    els.dashboardInsights.textContent = "Load a folder to see annotation insights.";
     return;
   }
 
-  els.dashboardPreviewGrid.className = "dashboard-preview-grid";
-  state.images.slice(0, 8).forEach((image) => {
-    const fragment = els.previewCardTemplate.content.cloneNode(true);
-    fragment.querySelector("img").src = image.objectUrl;
-    fragment.querySelector("img").alt = image.file.name;
-    fragment.querySelector(".preview-name").textContent = image.file.name;
-    fragment.querySelector(".preview-category").textContent = image.category;
-    els.dashboardPreviewGrid.appendChild(fragment);
+  const totalImages = state.images.length;
+  const withRemarks = state.images.filter((image) => image.annotation.description.trim().length > 0).length;
+  const withMorphology = state.images.filter((image) => morphologyToLegacyTags(image.annotation.morphology).length > 0).length;
+
+  const categoryStats = new Map();
+  state.images.forEach((image) => {
+    if (!categoryStats.has(image.category)) {
+      categoryStats.set(image.category, { total: 0, annotated: 0 });
+    }
+    const row = categoryStats.get(image.category);
+    row.total += 1;
+    if (isAnnotated(image)) {
+      row.annotated += 1;
+    }
   });
+
+  const bestCategory = Array.from(categoryStats.entries())
+    .sort((a, b) => (b[1].annotated / Math.max(1, b[1].total)) - (a[1].annotated / Math.max(1, a[1].total)))[0];
+
+  const summary = document.createElement("div");
+  summary.className = "dashboard-insight-summary";
+  summary.innerHTML = `
+    <article class="dashboard-insight-card">
+      <h4>With Remarks</h4>
+      <p>${withRemarks}/${totalImages}</p>
+    </article>
+    <article class="dashboard-insight-card">
+      <h4>With Morphology</h4>
+      <p>${withMorphology}/${totalImages}</p>
+    </article>
+    <article class="dashboard-insight-card">
+      <h4>Top Category</h4>
+      <p>${bestCategory ? bestCategory[0] : "-"}</p>
+    </article>
+  `;
+
+  const chart = document.createElement("div");
+  chart.className = "dashboard-insight-chart";
+
+  Array.from(categoryStats.entries())
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .forEach(([category, info]) => {
+      const ratio = info.total === 0 ? 0 : Math.round((info.annotated / info.total) * 100);
+      const row = document.createElement("div");
+      row.className = "insight-row";
+      row.innerHTML = `
+        <span class="insight-label">${escapeHtml(category)}</span>
+        <div class="insight-track"><div class="insight-fill" style="width:${ratio}%"></div></div>
+        <span class="insight-value">${ratio}%</span>
+      `;
+      chart.appendChild(row);
+    });
+
+  els.dashboardInsights.className = "dashboard-insights";
+  els.dashboardInsights.append(summary, chart);
 }
 
 function renderCategories() {
@@ -490,9 +700,10 @@ function renderImagePicker() {
     filePath.textContent = image.relativePath;
 
     const status = document.createElement("span");
-    const annotated = isAnnotated(image);
+    const progress = getImageAnnotationPercentage(image);
+    const annotated = progress > 0;
     status.className = annotated ? "picker-status status-annotated" : "picker-status status-unannotated";
-    status.textContent = annotated ? "Annotated" : "Unannotated";
+    status.textContent = `${progress}% annotated`;
 
     info.append(fileName, filePath, status);
 
@@ -529,6 +740,74 @@ function onDescriptionInputAutosave() {
 
   image.annotation.description = els.fieldDescription.value;
   queueAutoSaveCurrentAnnotation();
+}
+
+function onRelativePathInput() {
+  const image = getImageById(state.activeImageId);
+  if (!image) {
+    return;
+  }
+}
+
+async function onRelativePathBlurRename() {
+  const image = getImageById(state.activeImageId);
+  if (!image) {
+    return;
+  }
+
+  const previousRelativePath = image.relativePath;
+  const requestedRelativePath = normalizeRelativePath(els.fieldImageName.value);
+  if (!requestedRelativePath || requestedRelativePath === previousRelativePath) {
+    els.fieldImageName.value = image.relativePath;
+    return;
+  }
+
+  const nextFileName = getFileNameFromRelativePath(requestedRelativePath);
+  if (!nextFileName) {
+    els.fieldImageName.value = image.relativePath;
+    return;
+  }
+
+  if (!window.desktopBridge?.renameFile) {
+    window.alert("Desktop rename bridge not detected. Please close the app and run `npm start` again.");
+    els.fieldImageName.value = previousRelativePath;
+    return;
+  }
+
+  const absolutePath = image.absolutePath || buildAbsolutePathFromRoot(state.loadedFolderAbsolutePath, image.relativePath);
+  if (!absolutePath) {
+    window.alert("Absolute file path is unavailable, so local rename cannot run. Reload the folder in the desktop app and try again.");
+    els.fieldImageName.value = previousRelativePath;
+    return;
+  }
+
+  try {
+    const result = await window.desktopBridge.renameFile({
+      absolutePath,
+      newFileName: nextFileName,
+      rootPath: state.loadedFolderAbsolutePath,
+      newRelativePath: requestedRelativePath,
+    });
+
+    if (!result?.ok) {
+      window.alert(result?.error || "Failed to rename local file.");
+      els.fieldImageName.value = previousRelativePath;
+      return;
+    }
+
+    image.absolutePath = result.newAbsolutePath || absolutePath;
+  } catch {
+    window.alert("Failed to rename local file.");
+    els.fieldImageName.value = previousRelativePath;
+    return;
+  }
+
+  image.relativePath = requestedRelativePath;
+  image.annotation.imageName = nextFileName;
+  image.category = getParentRelativePath(requestedRelativePath).split("/").pop() || "uncategorized";
+  state.categories = buildCategories(state.images);
+  refreshAll();
+  await saveCurrentAnnotation();
 }
 
 function queueAutoSaveCurrentAnnotation() {
@@ -599,7 +878,7 @@ function renderComparisonGrid() {
     img.src = image.objectUrl;
     img.alt = image.file.name;
     img.style.transform = `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`;
-    name.textContent = image.file.name;
+    name.textContent = image.relativePath;
     category.textContent = `${image.category} | zoom ${zoom.toFixed(1)}x | drag to move`;
     zoomResetDisplayBtn.textContent = `${zoom.toFixed(1)}x`;
 
@@ -753,7 +1032,7 @@ function renderActiveAnnotation() {
   const image = getImageById(state.activeImageId);
   const disabled = !image;
 
-  els.fieldImageName.disabled = true;
+  els.fieldImageName.disabled = disabled;
   els.fieldDescription.disabled = disabled;
 
   if (!image) {
@@ -765,7 +1044,7 @@ function renderActiveAnnotation() {
   }
 
   els.activeImageLabel.textContent = image.relativePath;
-  els.fieldImageName.value = image.file.name;
+  els.fieldImageName.value = image.relativePath;
   els.fieldDescription.value = image.annotation.description;
   renderMorphologySections(image.annotation.morphology);
 }
@@ -793,6 +1072,9 @@ function renderMorphologySections(activeAnswers = null) {
 
     const selected = normalizeTag(activeAnswers[question.key]);
     getAllOptions(question.key).forEach((option) => {
+      const optionItem = document.createElement("div");
+      optionItem.className = "morphology-option-item";
+
       const optionButton = document.createElement("button");
       optionButton.type = "button";
       optionButton.className = "morphology-option";
@@ -806,7 +1088,21 @@ function renderMorphologySections(activeAnswers = null) {
         selectMorphologyOption(question.key, option);
       });
 
-      optionsRow.appendChild(optionButton);
+      optionItem.appendChild(optionButton);
+
+      if (isCustomMorphologyOption(question.key, option)) {
+        const deleteButton = document.createElement("button");
+        deleteButton.type = "button";
+        deleteButton.className = "morphology-delete-option";
+        deleteButton.setAttribute("aria-label", `Delete ${option}`);
+        deleteButton.textContent = "x";
+        deleteButton.addEventListener("click", () => {
+          deleteCustomMorphologyOption(question.key, option);
+        });
+        optionItem.appendChild(deleteButton);
+      }
+
+      optionsRow.appendChild(optionItem);
     });
 
     const addRow = document.createElement("div");
@@ -852,6 +1148,31 @@ function renderMorphologySections(activeAnswers = null) {
   });
 }
 
+function isCustomMorphologyOption(sectionKey, option) {
+  const normalized = normalizeTag(option);
+  return (state.customMorphologyOptions[sectionKey] || []).includes(normalized);
+}
+
+function deleteCustomMorphologyOption(sectionKey, option) {
+  const normalized = normalizeTag(option);
+  const current = state.customMorphologyOptions[sectionKey] || [];
+  state.customMorphologyOptions[sectionKey] = current.filter((value) => value !== normalized);
+
+  if (state.customMorphologyOptions[sectionKey].length === 0) {
+    delete state.customMorphologyOptions[sectionKey];
+  }
+
+  // Clear this option from all loaded images if they were using it.
+  state.images.forEach((image) => {
+    if (normalizeTag(image.annotation.morphology[sectionKey]) === normalized) {
+      image.annotation.morphology[sectionKey] = "";
+    }
+  });
+
+  refreshAll();
+  void persistAnnotationData();
+}
+
 function selectMorphologyOption(sectionKey, option) {
   const image = getImageById(state.activeImageId);
   if (!image) {
@@ -878,7 +1199,7 @@ async function saveCurrentAnnotation() {
     return;
   }
 
-  image.annotation.imageName = image.file.name;
+  image.annotation.imageName = getFileNameFromRelativePath(image.relativePath) || image.file.name;
   image.annotation.description = els.fieldDescription.value;
   image.annotation.morphology = mergeMorphologyAnswers(
     createEmptyMorphologyAnswers(),
@@ -925,7 +1246,7 @@ function renderLibraryList() {
 
     img.src = image.objectUrl;
     img.alt = image.file.name;
-    name.textContent = image.annotation.imageName || image.file.name;
+    name.textContent = image.relativePath;
     path.textContent = image.relativePath;
     morphology.textContent = getMorphologySummary(image);
 
@@ -982,15 +1303,15 @@ function renderViewer() {
           <dd>${escapeHtml(image.category)}</dd>
         </div>
         <div>
-          <dt>Image Name</dt>
-          <dd>${escapeHtml(image.annotation.imageName || image.file.name)}</dd>
+          <dt>File Name</dt>
+          <dd>${escapeHtml(getFileNameFromRelativePath(image.relativePath) || image.file.name)}</dd>
         </div>
         <div>
           <dt>Morphology</dt>
           <dd>${morphologyTags.length > 0 ? escapeHtml(getMorphologySummary(image).replace("Morphology: ", "")) : "-"}</dd>
         </div>
         <div>
-          <dt>Description</dt>
+            <dt>Remarks</dt>
           <dd>${safeDescription.replaceAll("\n", "<br>")}</dd>
         </div>
       </dl>

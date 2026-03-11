@@ -1,0 +1,33 @@
+{
+  "name": "image-annotation-workspace",
+  "version": "1.0.0",
+  "description": "Desktop image annotation workspace for bacteria morphology",
+  "main": "src/main/main.js",
+  "author": "",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder"
+  },
+  "devDependencies": {
+    "electron": "^37.2.6",
+    "electron-builder": "^26.8.1"
+  },
+  "build": {
+    "appId": "com.gaerc.annotationworkspace",
+    "productName": "Image Annotation Workspace",
+    "files": [
+      "src/**/*",
+      "data/**/*",
+      "assets/**/*",
+      "samples/**/*",
+      "package.json"
+    ],
+    "directories": {
+      "buildResources": "build"
+    },
+    "win": {
+      "target": "nsis"
+    }
+  }
+}
