@@ -87,6 +87,11 @@ const els = {
   filterFieldLabels: document.getElementById("filterFieldLabels"),
   filterFieldRemarks: document.getElementById("filterFieldRemarks"),
   filterFolderList: document.getElementById("filterFolderList"),
+  libraryFilterSearchInput: document.getElementById("libraryFilterSearchInput"),
+  libraryFilterFieldFilename: document.getElementById("libraryFilterFieldFilename"),
+  libraryFilterFieldLabels: document.getElementById("libraryFilterFieldLabels"),
+  libraryFilterFieldRemarks: document.getElementById("libraryFilterFieldRemarks"),
+  libraryFilterFolderList: document.getElementById("libraryFilterFolderList"),
   statTotalImages: document.getElementById("statTotalImages"),
   statCategories: document.getElementById("statCategories"),
   statAnnotated: document.getElementById("statAnnotated"),
@@ -119,10 +124,22 @@ async function initialize() {
   els.themeSelect.addEventListener("change", onThemeChange);
   els.backFromAnnotatorBtn.addEventListener("click", onBackButtonClick);
   els.resetPickerBtn.addEventListener("click", resetImagePickerSelection);
-  els.filterSearchInput.addEventListener("input", onFilterInputChange);
-  els.filterFieldFilename.addEventListener("change", onFilterInputChange);
-  els.filterFieldLabels.addEventListener("change", onFilterInputChange);
-  els.filterFieldRemarks.addEventListener("change", onFilterInputChange);
+  els.filterSearchInput.addEventListener("input", onAnnotatorFilterInputChange);
+  els.filterFieldFilename.addEventListener("change", onAnnotatorFilterInputChange);
+  els.filterFieldLabels.addEventListener("change", onAnnotatorFilterInputChange);
+  els.filterFieldRemarks.addEventListener("change", onAnnotatorFilterInputChange);
+  if (els.libraryFilterSearchInput) {
+    els.libraryFilterSearchInput.addEventListener("input", onLibraryFilterInputChange);
+  }
+  if (els.libraryFilterFieldFilename) {
+    els.libraryFilterFieldFilename.addEventListener("change", onLibraryFilterInputChange);
+  }
+  if (els.libraryFilterFieldLabels) {
+    els.libraryFilterFieldLabels.addEventListener("change", onLibraryFilterInputChange);
+  }
+  if (els.libraryFilterFieldRemarks) {
+    els.libraryFilterFieldRemarks.addEventListener("change", onLibraryFilterInputChange);
+  }
   els.createSectionBtn.addEventListener("click", onCreateSectionClick);
   els.newSectionNameInput.addEventListener("keydown", (event) => {
     if (event.key === "Enter") {
@@ -337,13 +354,59 @@ function onCreateSectionClick() {
   void persistAnnotationData();
 }
 
-function onFilterInputChange() {
-  state.filterQuery = String(els.filterSearchInput.value || "").trim();
-  state.filterFields.filename = Boolean(els.filterFieldFilename.checked);
-  state.filterFields.labels = Boolean(els.filterFieldLabels.checked);
-  state.filterFields.remarks = Boolean(els.filterFieldRemarks.checked);
+function onAnnotatorFilterInputChange() {
+  updateFiltersFromControls("annotator");
+}
+
+function onLibraryFilterInputChange() {
+  updateFiltersFromControls("library");
+}
+
+function updateFiltersFromControls(source) {
+  if (source === "library") {
+    state.filterQuery = String(els.libraryFilterSearchInput?.value || "").trim();
+    state.filterFields.filename = Boolean(els.libraryFilterFieldFilename?.checked);
+    state.filterFields.labels = Boolean(els.libraryFilterFieldLabels?.checked);
+    state.filterFields.remarks = Boolean(els.libraryFilterFieldRemarks?.checked);
+  } else {
+    state.filterQuery = String(els.filterSearchInput.value || "").trim();
+    state.filterFields.filename = Boolean(els.filterFieldFilename.checked);
+    state.filterFields.labels = Boolean(els.filterFieldLabels.checked);
+    state.filterFields.remarks = Boolean(els.filterFieldRemarks.checked);
+  }
+
+  syncFilterControls();
+  renderFolderFilters();
   renderImagePicker();
   renderLibraryList();
+}
+
+function syncFilterControls() {
+  if (els.filterSearchInput) {
+    els.filterSearchInput.value = state.filterQuery;
+  }
+  if (els.filterFieldFilename) {
+    els.filterFieldFilename.checked = state.filterFields.filename;
+  }
+  if (els.filterFieldLabels) {
+    els.filterFieldLabels.checked = state.filterFields.labels;
+  }
+  if (els.filterFieldRemarks) {
+    els.filterFieldRemarks.checked = state.filterFields.remarks;
+  }
+
+  if (els.libraryFilterSearchInput) {
+    els.libraryFilterSearchInput.value = state.filterQuery;
+  }
+  if (els.libraryFilterFieldFilename) {
+    els.libraryFilterFieldFilename.checked = state.filterFields.filename;
+  }
+  if (els.libraryFilterFieldLabels) {
+    els.libraryFilterFieldLabels.checked = state.filterFields.labels;
+  }
+  if (els.libraryFilterFieldRemarks) {
+    els.libraryFilterFieldRemarks.checked = state.filterFields.remarks;
+  }
 }
 
 function getCategoryFolderName(image) {
@@ -398,35 +461,39 @@ function toggleFolderFilter(folderName, checked) {
   } else {
     state.selectedFolders = state.selectedFolders.filter((item) => item !== folderName);
   }
+  renderFolderFilters();
   renderImagePicker();
   renderLibraryList();
 }
 
 function renderFolderFilters() {
-  els.filterFolderList.innerHTML = "";
-  if (state.images.length === 0) {
-    els.filterFolderList.className = "filter-folder-list empty-state";
-    els.filterFolderList.textContent = "Load images to filter by category folder.";
-    return;
-  }
+  const containers = [els.filterFolderList, els.libraryFilterFolderList].filter(Boolean);
+  containers.forEach((container) => {
+    container.innerHTML = "";
+    if (state.images.length === 0) {
+      container.className = "filter-folder-list empty-state";
+      container.textContent = "Load images to filter by category folder.";
+      return;
+    }
 
-  const folders = Array.from(new Set(state.images.map((image) => getCategoryFolderName(image)))).sort((a, b) => a.localeCompare(b));
-  els.filterFolderList.className = "filter-folder-list";
-  folders.forEach((folderName) => {
-    const label = document.createElement("label");
-    label.className = "folder-filter-option";
+    const folders = Array.from(new Set(state.images.map((image) => getCategoryFolderName(image)))).sort((a, b) => a.localeCompare(b));
+    container.className = "filter-folder-list";
+    folders.forEach((folderName) => {
+      const label = document.createElement("label");
+      label.className = "folder-filter-option";
 
-    const checkbox = document.createElement("input");
-    checkbox.type = "checkbox";
-    checkbox.checked = state.selectedFolders.includes(folderName);
-    checkbox.addEventListener("change", () => {
-      toggleFolderFilter(folderName, checkbox.checked);
+      const checkbox = document.createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.checked = state.selectedFolders.includes(folderName);
+      checkbox.addEventListener("change", () => {
+        toggleFolderFilter(folderName, checkbox.checked);
+      });
+
+      const text = document.createElement("span");
+      text.textContent = folderName;
+      label.append(checkbox, text);
+      container.appendChild(label);
     });
-
-    const text = document.createElement("span");
-    text.textContent = folderName;
-    label.append(checkbox, text);
-    els.filterFolderList.appendChild(label);
   });
 }
 
@@ -707,10 +774,38 @@ function closeAllPopoutWindows() {
   state.popupWindowsByImageId.clear();
 }
 
-function buildPopoutDocumentHtml(image) {
+function getPopoutThemeSnapshot() {
+  const bodyStyle = getComputedStyle(document.body);
+  const read = (name, fallback) => {
+    const value = bodyStyle.getPropertyValue(name).trim();
+    return value || fallback;
+  };
+
+  const themeName = String(document.body.dataset.theme || "light");
+  const prefersDark = themeName === "dark" || themeName === "slate-mist";
+
+  return {
+    colorScheme: prefersDark ? "dark" : "light",
+    bg: read("--bg", "#f5efe4"),
+    ink: read("--ink", "#1f2733"),
+    line: read("--line", "#d3c9b7"),
+    card: read("--card", "#fffcf7"),
+    muted: read("--muted", "#5f6877"),
+    accent: read("--accent", "#cf7538"),
+    accentStrong: read("--accent-strong", "#ad5b24"),
+    surface2: read("--surface-2", "#ffffff"),
+    surfaceHover: read("--surface-hover", "#f1ece3"),
+    bgRadial1: read("--bg-radial-1", "#fff2d5"),
+    bgGradEnd: read("--bg-grad-end", "#e9e0d0"),
+    headerBg: read("--header-bg", "rgba(255, 251, 244, 0.94)"),
+  };
+}
+
+function buildPopoutDocumentHtml(image, themeSnapshot) {
   const safeTitle = escapeHtml(image.relativePath || image.file.name);
   const safeCategory = escapeHtml(image.category || "uncategorized");
   const imageSrc = escapeHtml(image.objectUrl);
+  const theme = themeSnapshot || getPopoutThemeSnapshot();
 
   return `<!doctype html>
 <html lang="en">
@@ -720,21 +815,26 @@ function buildPopoutDocumentHtml(image) {
   <title>${safeTitle}</title>
   <style>
     :root {
-      color-scheme: light;
-      --bg: #f5efe4;
-      --ink: #1f2733;
-      --line: #d3c9b7;
-      --card: #fffcf7;
-      --muted: #5f6877;
-      --accent: #cf7538;
-      --accent-strong: #ad5b24;
+      color-scheme: ${theme.colorScheme};
+      --bg: ${theme.bg};
+      --ink: ${theme.ink};
+      --line: ${theme.line};
+      --card: ${theme.card};
+      --muted: ${theme.muted};
+      --accent: ${theme.accent};
+      --accent-strong: ${theme.accentStrong};
+      --surface-2: ${theme.surface2};
+      --surface-hover: ${theme.surfaceHover};
+      --bg-radial-1: ${theme.bgRadial1};
+      --bg-grad-end: ${theme.bgGradEnd};
+      --header-bg: ${theme.headerBg};
     }
     * { box-sizing: border-box; }
     body {
       margin: 0;
       font-family: "Segoe UI", Tahoma, sans-serif;
       color: var(--ink);
-      background: radial-gradient(circle at 15% 20%, #fff2d5 0%, transparent 48%), linear-gradient(160deg, var(--bg), #e9e0d0);
+      background: radial-gradient(circle at 15% 20%, var(--bg-radial-1) 0%, transparent 48%), linear-gradient(160deg, var(--bg), var(--bg-grad-end));
       min-height: 100vh;
       display: grid;
       grid-template-rows: auto 1fr;
@@ -749,7 +849,7 @@ function buildPopoutDocumentHtml(image) {
       gap: 0.4rem;
       padding: 0.65rem;
       border-bottom: 1px solid var(--line);
-      background: rgba(255, 251, 244, 0.94);
+      background: var(--header-bg);
       backdrop-filter: blur(8px);
     }
     .toolbar button {
@@ -801,7 +901,7 @@ function buildPopoutDocumentHtml(image) {
       border: 1px solid var(--line);
       border-radius: 12px;
       overflow: hidden;
-      background: #efe6d5;
+      background: var(--surface-2);
       cursor: grab;
       min-height: 320px;
     }
@@ -1006,8 +1106,9 @@ function openImagePopout(imageId) {
     return;
   }
 
+  const themeSnapshot = getPopoutThemeSnapshot();
   popupWindow.document.open();
-  popupWindow.document.write(buildPopoutDocumentHtml(image));
+  popupWindow.document.write(buildPopoutDocumentHtml(image, themeSnapshot));
   popupWindow.document.close();
   state.popupWindowsByImageId.set(imageId, popupWindow);
 

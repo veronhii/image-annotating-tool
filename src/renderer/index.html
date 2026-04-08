@@ -158,10 +158,22 @@
     </section>
 
     <section id="libraryView" class="view hidden">
-      <div class="hero-card">
+      <div class="hero-card library-hero-card">
         <div>
           <h2>Library</h2>
           <p>Read-only listing for all loaded images.</p>
+        </div>
+        <div class="library-filter-panel">
+          <label>
+            Search (multi-keyword)
+            <input id="libraryFilterSearchInput" type="text" placeholder="e.g. red rough colony_01">
+          </label>
+          <div class="filter-field-row">
+            <label><input id="libraryFilterFieldFilename" type="checkbox" checked> Filename</label>
+            <label><input id="libraryFilterFieldLabels" type="checkbox" checked> Labels</label>
+            <label><input id="libraryFilterFieldRemarks" type="checkbox" checked> Remarks</label>
+          </div>
+          <div id="libraryFilterFolderList" class="filter-folder-list empty-state">Load images to filter by category folder.</div>
         </div>
       </div>
 
