@@ -1094,10 +1094,15 @@ function renderComparisonGrid() {
     const rotateLeftBtn = fragment.querySelector(".rotate-left");
     const rotateRightBtn = fragment.querySelector(".rotate-right");
     const flipHorizontalBtn = fragment.querySelector(".flip-horizontal");
+    const rotateAngleSlider = fragment.querySelector(".rotate-angle-slider");
+    const rotateAngleValue = fragment.querySelector(".rotate-angle-value");
 
     img.src = image.objectUrl;
     img.alt = image.file.name;
     applyImageTransform(img, image.id);
+    const transform = getImageTransform(image.id);
+    rotateAngleSlider.value = String(transform.rotation);
+    rotateAngleValue.textContent = `${transform.rotation}deg`;
     name.textContent = image.relativePath;
     category.textContent = `${image.category} | scroll to zoom | drag to move`;
     zoomResetDisplayBtn.textContent = `${getZoom(image.id).toFixed(1)}x`;
@@ -1172,6 +1177,17 @@ function renderComparisonGrid() {
       flipImageHorizontally(image.id);
     });
 
+    rotateAngleSlider.addEventListener("input", (event) => {
+      event.stopPropagation();
+      const raw = Number(event.target.value);
+      const angle = Number.isFinite(raw) ? Math.max(-180, Math.min(180, Math.round(raw))) : 0;
+      const current = getImageTransform(image.id);
+      setImageTransform(image.id, { rotation: angle, flipX: current.flipX });
+      rotateAngleValue.textContent = `${angle}deg`;
+      renderComparisonGrid();
+      renderViewer();
+    });
+
     resetViewBtn.addEventListener("click", (event) => {
       event.stopPropagation();
       setZoom(image.id, 1);
@@ -1226,15 +1242,17 @@ function setImageTransform(imageId, nextTransform) {
 
 function rotateImage(imageId, deltaDegrees) {
   const current = getImageTransform(imageId);
-  const nextRotation = ((current.rotation + deltaDegrees) % 360 + 360) % 360;
+  const nextRotation = Math.max(-180, Math.min(180, current.rotation + deltaDegrees));
   setImageTransform(imageId, { rotation: nextRotation, flipX: current.flipX });
   renderComparisonGrid();
+  renderViewer();
 }
 
 function flipImageHorizontally(imageId) {
   const current = getImageTransform(imageId);
   setImageTransform(imageId, { rotation: current.rotation, flipX: current.flipX === 1 ? -1 : 1 });
   renderComparisonGrid();
+  renderViewer();
 }
 
 function applyImageTransform(imgElement, imageId) {
@@ -1614,6 +1632,10 @@ function renderViewer() {
         <button type="button" class="viewer-rotate-left" aria-label="Rotate left">⟲</button>
         <button type="button" class="viewer-rotate-right" aria-label="Rotate right">⟳</button>
         <button type="button" class="viewer-flip-horizontal" aria-label="Flip horizontal">⇋</button>
+        <label class="rotate-angle-control" aria-label="Rotate angle">
+          <span class="rotate-angle-value viewer-rotate-angle-value">0deg</span>
+          <input type="range" class="rotate-angle-slider viewer-rotate-angle-slider" min="-180" max="180" step="1" value="0">
+        </label>
         <button type="button" class="viewer-reset-view" aria-label="Reset view">Reset</button>
       </div>
       <div class="viewer-image-viewport" aria-label="Viewer image viewport">
@@ -1659,16 +1681,21 @@ function setupViewerInteractions(imageId) {
   const rotateLeftBtn = els.viewerContent.querySelector(".viewer-rotate-left");
   const rotateRightBtn = els.viewerContent.querySelector(".viewer-rotate-right");
   const flipHorizontalBtn = els.viewerContent.querySelector(".viewer-flip-horizontal");
+  const rotateAngleSlider = els.viewerContent.querySelector(".viewer-rotate-angle-slider");
+  const rotateAngleValue = els.viewerContent.querySelector(".viewer-rotate-angle-value");
   const resetBtn = els.viewerContent.querySelector(".viewer-reset-view");
 
-  if (!viewport || !img || !zoomInBtn || !zoomOutBtn || !zoomLevelBtn || !rotateLeftBtn || !rotateRightBtn || !flipHorizontalBtn || !resetBtn) {
+  if (!viewport || !img || !zoomInBtn || !zoomOutBtn || !zoomLevelBtn || !rotateLeftBtn || !rotateRightBtn || !flipHorizontalBtn || !rotateAngleSlider || !rotateAngleValue || !resetBtn) {
     return;
   }
 
   const updateViewerTransform = () => {
     applyImageTransform(img, imageId);
     const zoom = getZoom(imageId);
+    const transform = getImageTransform(imageId);
     zoomLevelBtn.textContent = `${zoom.toFixed(1)}x`;
+    rotateAngleSlider.value = String(transform.rotation);
+    rotateAngleValue.textContent = `${transform.rotation}deg`;
   };
 
   const zoomViewerBy = (delta) => {
@@ -1747,6 +1774,16 @@ function setupViewerInteractions(imageId) {
     event.stopPropagation();
     const current = getImageTransform(imageId);
     setImageTransform(imageId, { rotation: current.rotation, flipX: current.flipX === 1 ? -1 : 1 });
+    updateViewerTransform();
+    renderComparisonGrid();
+  });
+
+  rotateAngleSlider.addEventListener("input", (event) => {
+    event.stopPropagation();
+    const raw = Number(event.target.value);
+    const angle = Number.isFinite(raw) ? Math.max(-180, Math.min(180, Math.round(raw))) : 0;
+    const current = getImageTransform(imageId);
+    setImageTransform(imageId, { rotation: angle, flipX: current.flipX });
     updateViewerTransform();
     renderComparisonGrid();
   });

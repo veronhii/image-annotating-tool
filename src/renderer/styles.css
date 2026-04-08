@@ -691,6 +691,35 @@ main {
   background: rgba(255, 255, 255, 1);
 }
 
+.rotate-angle-control {
+  display: inline-grid;
+  grid-template-columns: auto;
+  gap: 0.15rem;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  padding: 0.22rem 0.45rem;
+  min-width: 112px;
+}
+
+.rotate-angle-value {
+  font-size: 0.66rem;
+  line-height: 1;
+  color: var(--overlay-btn-text);
+  text-align: center;
+}
+
+.rotate-angle-slider {
+  width: 100%;
+  height: 16px;
+  margin: 0;
+}
+
+.rotate-angle-slider {
+  accent-color: var(--accent);
+}
+
 .image-picker-list {
   max-height: 340px;
   overflow-y: auto;
@@ -723,11 +752,18 @@ main {
 }
 
 .filter-field-row label {
-  display: inline-flex;
+  display: inline-grid;
+  grid-template-columns: 16px 1fr;
   align-items: center;
-  gap: 0.3rem;
+  column-gap: 0.38rem;
   color: var(--ink);
   font-size: 0.75rem;
+  line-height: 1.1;
+  min-height: 24px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.26rem 0.5rem 0.26rem 0.42rem;
+  background: var(--surface-2);
 }
 
 .filter-folder-list {
@@ -742,10 +778,62 @@ main {
 }
 
 .folder-filter-option {
-  display: inline-flex;
+  display: inline-grid;
+  grid-template-columns: 18px 1fr;
   align-items: center;
-  gap: 0.35rem;
-  font-size: 0.75rem;
+  column-gap: 0.45rem;
+  font-size: 0.76rem;
+  line-height: 1.15;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 0.22rem 0.28rem;
+}
+
+.folder-filter-option:hover {
+  background: var(--surface-hover);
+  border-color: var(--line);
+}
+
+.filter-field-row input[type="checkbox"],
+.folder-filter-option input[type="checkbox"] {
+  appearance: none;
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--surface-2);
+  display: inline-grid;
+  place-content: center;
+  cursor: pointer;
+}
+
+.filter-field-row input[type="checkbox"]::before,
+.folder-filter-option input[type="checkbox"]::before {
+  content: "";
+  width: 4px;
+  height: 8px;
+  border-right: 2px solid #fff;
+  border-bottom: 2px solid #fff;
+  transform: rotate(45deg) scale(0);
+  transition: transform 120ms ease-in-out;
+}
+
+.filter-field-row input[type="checkbox"]:checked,
+.folder-filter-option input[type="checkbox"]:checked {
+  background: var(--accent);
+  border-color: var(--accent-strong);
+}
+
+.filter-field-row input[type="checkbox"]:checked::before,
+.folder-filter-option input[type="checkbox"]:checked::before {
+  transform: rotate(45deg) scale(1);
+}
+
+.filter-field-row input[type="checkbox"]:focus-visible,
+.folder-filter-option input[type="checkbox"]:focus-visible {
+  outline: 2px solid rgba(215, 111, 48, 0.3);
+  outline-offset: 1px;
 }
 
 .picker-row {

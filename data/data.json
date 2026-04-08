@@ -1,26 +1,91 @@
 {
-  "createdAt": "2026-03-11T11:28:50.707Z",
+  "createdAt": "2026-04-08T13:03:00.601Z",
   "totalImages": 12,
-  "customMorphologyOptions": {},
-  "items": [
+  "morphologySections": [
     {
-      "originalName": "cat_01.png",
-      "relativePath": "animals/cat_01.png",
-      "category": "animals",
-      "annotation": {
-        "imageName": "cat_01.png",
-        "description": "",
-        "morphology": {
-          "shape": "",
-          "opacity": "",
-          "color": "",
-          "elevation": "",
-          "margin": "",
-          "surface": ""
-        },
-        "tags": []
-      }
+      "key": "general",
+      "label": "General Labels",
+      "options": []
     },
+    {
+      "key": "shape",
+      "label": "Shape",
+      "options": [
+        "irregular",
+        "regular"
+      ]
+    },
+    {
+      "key": "opacity",
+      "label": "Opacity",
+      "options": [
+        "opaque",
+        "translucent",
+        "transparent"
+      ]
+    },
+    {
+      "key": "color",
+      "label": "Color",
+      "options": [
+        "clear",
+        "white",
+        "cream",
+        "yellow",
+        "orange",
+        "red",
+        "pink",
+        "green",
+        "blue",
+        "brown",
+        "black"
+      ]
+    },
+    {
+      "key": "elevation",
+      "label": "Elevation",
+      "options": [
+        "flat",
+        "raised",
+        "convex",
+        "umbonate",
+        "crateriform"
+      ]
+    },
+    {
+      "key": "margin",
+      "label": "Margin",
+      "options": [
+        "entire",
+        "undulate",
+        "lobate",
+        "filamentous",
+        "curled"
+      ]
+    },
+    {
+      "key": "surface",
+      "label": "Surface Texture",
+      "options": [
+        "smooth",
+        "rough",
+        "wrinkled",
+        "mucoid",
+        "dry"
+      ]
+    },
+    {
+      "key": "fj",
+      "label": "FJ",
+      "options": []
+    }
+  ],
+  "customMorphologyOptions": {
+    "fj": [
+      "dd"
+    ]
+  },
+  "items": [
     {
       "originalName": "fish_04.png",
       "relativePath": "anddqimals/fish_04.png",
@@ -29,12 +94,34 @@
         "imageName": "fish_04.png",
         "description": "",
         "morphology": {
-          "shape": "",
-          "opacity": "",
-          "color": "",
-          "elevation": "",
-          "margin": "",
-          "surface": ""
+          "general": [],
+          "shape": [],
+          "opacity": [],
+          "color": [],
+          "elevation": [],
+          "margin": [],
+          "surface": [],
+          "fj": []
+        },
+        "tags": []
+      }
+    },
+    {
+      "originalName": "cat_01.png",
+      "relativePath": "animals/cat_01.png",
+      "category": "animals",
+      "annotation": {
+        "imageName": "cat_01.png",
+        "description": "",
+        "morphology": {
+          "general": [],
+          "shape": [],
+          "opacity": [],
+          "color": [],
+          "elevation": [],
+          "margin": [],
+          "surface": [],
+          "fj": []
         },
         "tags": []
       }
@@ -47,12 +134,14 @@
         "imageName": "sqsqsqs.png",
         "description": "",
         "morphology": {
-          "shape": "",
-          "opacity": "",
-          "color": "",
-          "elevation": "",
-          "margin": "",
-          "surface": ""
+          "general": [],
+          "shape": [],
+          "opacity": [],
+          "color": [],
+          "elevation": [],
+          "margin": [],
+          "surface": [],
+          "fj": []
         },
         "tags": []
       }
@@ -65,14 +154,20 @@
         "imageName": "this_is_dog_02.png",
         "description": "",
         "morphology": {
-          "shape": "",
-          "opacity": "",
-          "color": "",
-          "elevation": "",
-          "margin": "",
-          "surface": ""
+          "general": [],
+          "shape": [],
+          "opacity": [],
+          "color": [],
+          "elevation": [],
+          "margin": [],
+          "surface": [],
+          "fj": [
+            "dd"
+          ]
         },
-        "tags": []
+        "tags": [
+          "dd"
+        ]
       }
     },
     {
@@ -83,12 +178,14 @@
         "imageName": "beach_03.png",
         "description": "",
         "morphology": {
-          "shape": "",
-          "opacity": "",
-          "color": "",
-          "elevation": "",
-          "margin": "",
-          "surface": ""
+          "general": [],
+          "shape": [],
+          "opacity": [],
+          "color": [],
+          "elevation": [],
+          "margin": [],
+          "surface": [],
+          "fj": []
         },
         "tags": []
       }
@@ -101,12 +198,14 @@
         "imageName": "city_01.png",
         "description": "",
         "morphology": {
-          "shape": "",
-          "opacity": "",
-          "color": "",
-          "elevation": "",
-          "margin": "",
-          "surface": ""
+          "general": [],
+          "shape": [],
+          "opacity": [],
+          "color": [],
+          "elevation": [],
+          "margin": [],
+          "surface": [],
+          "fj": []
         },
         "tags": []
       }
@@ -119,12 +218,14 @@
         "imageName": "forest_02.png",
         "description": "",
         "morphology": {
-          "shape": "",
-          "opacity": "",
-          "color": "",
-          "elevation": "",
-          "margin": "",
-          "surface": ""
+          "general": [],
+          "shape": [],
+          "opacity": [],
+          "color": [],
+          "elevation": [],
+          "margin": [],
+          "surface": [],
+          "fj": []
         },
         "tags": []
       }
@@ -137,12 +238,14 @@
         "imageName": "mountain_04.png",
         "description": "",
         "morphology": {
-          "shape": "",
-          "opacity": "",
-          "color": "",
-          "elevation": "",
-          "margin": "",
-          "surface": ""
+          "general": [],
+          "shape": [],
+          "opacity": [],
+          "color": [],
+          "elevation": [],
+          "margin": [],
+          "surface": [],
+          "fj": []
         },
         "tags": []
       }
@@ -155,12 +258,14 @@
         "imageName": "bike_1232132132132103.png",
         "description": "",
         "morphology": {
-          "shape": "",
-          "opacity": "",
-          "color": "",
-          "elevation": "",
-          "margin": "",
-          "surface": ""
+          "general": [],
+          "shape": [],
+          "opacity": [],
+          "color": [],
+          "elevation": [],
+          "margin": [],
+          "surface": [],
+          "fj": []
         },
         "tags": []
       }
@@ -173,12 +278,14 @@
         "imageName": "bus_02.png",
         "description": "",
         "morphology": {
-          "shape": "",
-          "opacity": "",
-          "color": "",
-          "elevation": "",
-          "margin": "",
-          "surface": ""
+          "general": [],
+          "shape": [],
+          "opacity": [],
+          "color": [],
+          "elevation": [],
+          "margin": [],
+          "surface": [],
+          "fj": []
         },
         "tags": []
       }
@@ -191,14 +298,23 @@
         "imageName": "car_01.png",
         "description": "",
         "morphology": {
-          "shape": "",
-          "opacity": "",
-          "color": "",
-          "elevation": "",
-          "margin": "",
-          "surface": ""
+          "general": [],
+          "shape": [
+            "regular"
+          ],
+          "opacity": [
+            "translucent"
+          ],
+          "color": [],
+          "elevation": [],
+          "margin": [],
+          "surface": [],
+          "fj": []
         },
-        "tags": []
+        "tags": [
+          "regular",
+          "translucent"
+        ]
       }
     },
     {
@@ -207,23 +323,18 @@
       "category": "vehicles",
       "annotation": {
         "imageName": "train_0adasdsadcx4.png",
-        "description": "c",
+        "description": "",
         "morphology": {
-          "shape": "regular",
-          "opacity": "translucent",
-          "color": "green",
-          "elevation": "convex",
-          "margin": "undulate",
-          "surface": "rough"
+          "general": [],
+          "shape": [],
+          "opacity": [],
+          "color": [],
+          "elevation": [],
+          "margin": [],
+          "surface": [],
+          "fj": []
         },
-        "tags": [
-          "regular",
-          "translucent",
-          "green",
-          "convex",
-          "undulate",
-          "rough"
-        ]
+        "tags": []
       }
     }
   ]
