@@ -2,7 +2,15 @@ const STORAGE_KEY = "annotationWorkspaceData";
 const THEME_KEY = "annotationWorkspaceTheme";
 const DEFAULT_THEME = "light";
 const AVAILABLE_THEMES = new Set(["light", "dark", "sage-cream", "rose-moss", "clay-coffee", "slate-mist"]);
-const MORPHOLOGY_QUESTIONS = [
+const MIN_ZOOM = 0.4;
+const MAX_ZOOM = 10;
+const LONG_PRESS_MS = 3000;
+const DEFAULT_MORPHOLOGY_SECTIONS = [
+  {
+    key: "general",
+    label: "General Labels",
+    options: [],
+  },
   {
     key: "shape",
     label: "Shape",
@@ -48,8 +56,17 @@ const state = {
   dataFileHandle: null,
   imageZoomById: new Map(),
   imagePanById: new Map(),
+  imageTransformById: new Map(),
   dragState: null,
   customMorphologyOptions: {},
+  morphologySections: DEFAULT_MORPHOLOGY_SECTIONS.map((section) => ({ ...section, options: [...section.options] })),
+  filterQuery: "",
+  filterFields: {
+    filename: true,
+    labels: true,
+    remarks: true,
+  },
+  selectedFolders: [],
 };
 
 const els = {
@@ -64,6 +81,11 @@ const els = {
   themeSelect: document.getElementById("themeSelect"),
   backFromAnnotatorBtn: document.getElementById("backFromAnnotatorBtn"),
   resetPickerBtn: document.getElementById("resetPickerBtn"),
+  filterSearchInput: document.getElementById("filterSearchInput"),
+  filterFieldFilename: document.getElementById("filterFieldFilename"),
+  filterFieldLabels: document.getElementById("filterFieldLabels"),
+  filterFieldRemarks: document.getElementById("filterFieldRemarks"),
+  filterFolderList: document.getElementById("filterFolderList"),
   statTotalImages: document.getElementById("statTotalImages"),
   statCategories: document.getElementById("statCategories"),
   statAnnotated: document.getElementById("statAnnotated"),
@@ -75,6 +97,8 @@ const els = {
   activeImageLabel: document.getElementById("activeImageLabel"),
   fieldImageName: document.getElementById("fieldImageName"),
   fieldDescription: document.getElementById("fieldDescription"),
+  newSectionNameInput: document.getElementById("newSectionNameInput"),
+  createSectionBtn: document.getElementById("createSectionBtn"),
   morphologySections: document.getElementById("morphologySections"),
   libraryList: document.getElementById("libraryList"),
   viewerContent: document.getElementById("viewerContent"),
@@ -94,6 +118,17 @@ async function initialize() {
   els.themeSelect.addEventListener("change", onThemeChange);
   els.backFromAnnotatorBtn.addEventListener("click", onBackButtonClick);
   els.resetPickerBtn.addEventListener("click", resetImagePickerSelection);
+  els.filterSearchInput.addEventListener("input", onFilterInputChange);
+  els.filterFieldFilename.addEventListener("change", onFilterInputChange);
+  els.filterFieldLabels.addEventListener("change", onFilterInputChange);
+  els.filterFieldRemarks.addEventListener("change", onFilterInputChange);
+  els.createSectionBtn.addEventListener("click", onCreateSectionClick);
+  els.newSectionNameInput.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      onCreateSectionClick();
+    }
+  });
   els.fieldImageName.addEventListener("input", onRelativePathInput);
   els.fieldImageName.addEventListener("blur", () => {
     if (state.activeImageId) {
@@ -222,6 +257,9 @@ async function applyLoadedSourceItems(sourceItems) {
 
 function hydrateImagesFromSource(sourceItems) {
   clearObjectUrls();
+  state.imageZoomById.clear();
+  state.imagePanById.clear();
+  state.imageTransformById.clear();
 
   state.loadedFolderAbsolutePath = deriveLoadedFolderAbsolutePath(sourceItems);
 
@@ -232,6 +270,7 @@ function hydrateImagesFromSource(sourceItems) {
     const id = String(index + 1);
     state.imageZoomById.set(id, 1);
     state.imagePanById.set(id, { x: 0, y: 0 });
+    state.imageTransformById.set(id, { rotation: 0, flipX: 1 });
 
     return {
       id,
@@ -250,6 +289,7 @@ function hydrateImagesFromSource(sourceItems) {
 
   state.categories = buildCategories(state.images);
   state.selectedForComparison = [];
+  state.selectedFolders = [];
   state.activeImageId = null;
   state.viewerImageId = null;
 
@@ -257,6 +297,135 @@ function hydrateImagesFromSource(sourceItems) {
     addToComparison(state.images[0].id);
     state.viewerImageId = state.images[0].id;
   }
+}
+
+function getSectionByKey(sectionKey) {
+  return state.morphologySections.find((section) => section.key === sectionKey) || null;
+}
+
+function normalizeSectionKey(label) {
+  const normalized = String(label || "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+  return normalized || "section";
+}
+
+function createUniqueSectionKey(label) {
+  const base = normalizeSectionKey(label);
+  let key = base;
+  let suffix = 2;
+  while (getSectionByKey(key)) {
+    key = `${base}-${suffix}`;
+    suffix += 1;
+  }
+  return key;
+}
+
+function onCreateSectionClick() {
+  const label = String(els.newSectionNameInput.value || "").trim();
+  if (!label) {
+    return;
+  }
+
+  const key = createUniqueSectionKey(label);
+  state.morphologySections.push({ key, label, options: [] });
+  els.newSectionNameInput.value = "";
+  state.images.forEach((image) => {
+    image.annotation.morphology[key] = [];
+  });
+  renderMorphologySections(getImageById(state.activeImageId)?.annotation.morphology || null);
+  void persistAnnotationData();
+}
+
+function onFilterInputChange() {
+  state.filterQuery = String(els.filterSearchInput.value || "").trim();
+  state.filterFields.filename = Boolean(els.filterFieldFilename.checked);
+  state.filterFields.labels = Boolean(els.filterFieldLabels.checked);
+  state.filterFields.remarks = Boolean(els.filterFieldRemarks.checked);
+  renderImagePicker();
+  renderLibraryList();
+}
+
+function getTopFolderName(image) {
+  const normalized = normalizeRelativePath(image?.relativePath || "");
+  const parts = normalized.split("/").filter(Boolean);
+  return parts.length > 1 ? parts[0] : "(root)";
+}
+
+function getSearchKeywords() {
+  return state.filterQuery
+    .split(/[\s,]+/)
+    .map((token) => normalizeTag(token))
+    .filter(Boolean);
+}
+
+function getSearchTextForImage(image) {
+  const textParts = [];
+  if (state.filterFields.filename) {
+    textParts.push(image.file.name, image.relativePath);
+  }
+  if (state.filterFields.labels) {
+    textParts.push(morphologyToLegacyTags(image.annotation.morphology).join(" "));
+  }
+  if (state.filterFields.remarks) {
+    textParts.push(image.annotation.description || "");
+  }
+  return normalizeTag(textParts.join(" "));
+}
+
+function getFilteredImages() {
+  const keywords = getSearchKeywords();
+  const selectedFolders = new Set(state.selectedFolders);
+  return state.images.filter((image) => {
+    if (selectedFolders.size > 0 && !selectedFolders.has(getTopFolderName(image))) {
+      return false;
+    }
+
+    if (keywords.length === 0) {
+      return true;
+    }
+
+    const haystack = getSearchTextForImage(image);
+    return keywords.every((keyword) => haystack.includes(keyword));
+  });
+}
+
+function toggleFolderFilter(folderName, checked) {
+  if (checked) {
+    if (!state.selectedFolders.includes(folderName)) {
+      state.selectedFolders.push(folderName);
+    }
+  } else {
+    state.selectedFolders = state.selectedFolders.filter((item) => item !== folderName);
+  }
+  renderImagePicker();
+  renderLibraryList();
+}
+
+function renderFolderFilters() {
+  els.filterFolderList.innerHTML = "";
+  if (state.images.length === 0) {
+    els.filterFolderList.className = "filter-folder-list empty-state";
+    els.filterFolderList.textContent = "Load images to filter by folder.";
+    return;
+  }
+
+  const folders = Array.from(new Set(state.images.map((image) => getTopFolderName(image)))).sort((a, b) => a.localeCompare(b));
+  els.filterFolderList.className = "filter-folder-list";
+  folders.forEach((folderName) => {
+    const label = document.createElement("label");
+    label.className = "folder-filter-option";
+
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.checked = state.selectedFolders.includes(folderName);
+    checkbox.addEventListener("change", () => {
+      toggleFolderFilter(folderName, checkbox.checked);
+    });
+
+    const text = document.createElement("span");
+    text.textContent = folderName;
+    label.append(checkbox, text);
+    els.filterFolderList.appendChild(label);
+  });
 }
 
 function normalizeOsPath(pathValue) {
@@ -302,14 +471,41 @@ async function restoreMetadataForLoadedImages() {
     return;
   }
 
+  if (Array.isArray(payload.morphologySections) && payload.morphologySections.length > 0) {
+    const nextSections = [];
+    payload.morphologySections.forEach((section) => {
+      const label = String(section?.label || "").trim();
+      const keyCandidate = String(section?.key || "").trim();
+      if (!label) {
+        return;
+      }
+
+      const key = keyCandidate && !nextSections.some((item) => item.key === keyCandidate)
+        ? keyCandidate
+        : createUniqueSectionKey(label);
+      const options = Array.isArray(section?.options)
+        ? section.options.map(normalizeTag).filter(Boolean)
+        : [];
+      nextSections.push({ key, label, options: Array.from(new Set(options)) });
+    });
+
+    if (nextSections.length > 0) {
+      state.morphologySections = nextSections;
+    }
+  }
+
+  if (!state.morphologySections.some((section) => section.key === "general")) {
+    state.morphologySections.unshift({ key: "general", label: "General Labels", options: [] });
+  }
+
   if (payload.customMorphologyOptions && typeof payload.customMorphologyOptions === "object") {
     state.customMorphologyOptions = {};
-    MORPHOLOGY_QUESTIONS.forEach((q) => {
-      const extras = payload.customMorphologyOptions[q.key];
+    state.morphologySections.forEach((section) => {
+      const extras = payload.customMorphologyOptions[section.key];
       if (Array.isArray(extras)) {
-        state.customMorphologyOptions[q.key] = extras
+        state.customMorphologyOptions[section.key] = extras
           .map(normalizeTag)
-          .filter((v) => v && !q.options.includes(v));
+          .filter((value) => value && !section.options.includes(value));
       }
     });
   }
@@ -412,15 +608,15 @@ function getParentRelativePath(relativePath) {
 }
 
 function getAllOptions(questionKey) {
-  const base = MORPHOLOGY_QUESTIONS.find((q) => q.key === questionKey)?.options || [];
+  const base = getSectionByKey(questionKey)?.options || [];
   const custom = state.customMorphologyOptions[questionKey] || [];
   return [...base, ...custom];
 }
 
 function createEmptyMorphologyAnswers() {
   const answers = {};
-  MORPHOLOGY_QUESTIONS.forEach((question) => {
-    answers[question.key] = "";
+  state.morphologySections.forEach((section) => {
+    answers[section.key] = [];
   });
   return answers;
 }
@@ -431,9 +627,15 @@ function mergeMorphologyAnswers(base, incoming) {
     return merged;
   }
 
-  MORPHOLOGY_QUESTIONS.forEach((question) => {
-    const selected = normalizeTag(incoming[question.key]);
-    merged[question.key] = getAllOptions(question.key).includes(selected) ? selected : "";
+  state.morphologySections.forEach((section) => {
+    const allowed = new Set(getAllOptions(section.key));
+    const raw = incoming[section.key];
+    const asArray = Array.isArray(raw)
+      ? raw
+      : raw
+        ? [raw]
+        : [];
+    merged[section.key] = Array.from(new Set(asArray.map(normalizeTag).filter((value) => allowed.has(value))));
   });
 
   return merged;
@@ -445,18 +647,21 @@ function tagsArrayToMorphology(tags) {
     .map((tag) => normalizeTag(tag))
     .filter(Boolean);
 
-  MORPHOLOGY_QUESTIONS.forEach((question) => {
-    const matched = normalized.find((tag) => question.options.includes(tag));
-    fromTags[question.key] = matched || "";
+  state.morphologySections.forEach((section) => {
+    const matches = normalized.filter((tag) => getAllOptions(section.key).includes(tag));
+    fromTags[section.key] = Array.from(new Set(matches));
   });
 
   return fromTags;
 }
 
 function morphologyToLegacyTags(morphology) {
-  return MORPHOLOGY_QUESTIONS
-    .map((question) => normalizeTag(morphology?.[question.key]))
-    .filter(Boolean);
+  return state.morphologySections
+    .flatMap((section) => {
+      const values = morphology?.[section.key];
+      const arr = Array.isArray(values) ? values : values ? [values] : [];
+      return arr.map(normalizeTag).filter(Boolean);
+    });
 }
 
 function getMorphologySummary(image) {
@@ -464,13 +669,14 @@ function getMorphologySummary(image) {
     return "Morphology: -";
   }
 
-  const parts = MORPHOLOGY_QUESTIONS
-    .map((question) => {
-      const value = normalizeTag(image.annotation.morphology[question.key]);
-      if (!value) {
+  const parts = state.morphologySections
+    .map((section) => {
+      const values = image.annotation.morphology[section.key];
+      const normalized = (Array.isArray(values) ? values : values ? [values] : []).map(normalizeTag).filter(Boolean);
+      if (normalized.length === 0) {
         return null;
       }
-      return `${question.label}: ${value}`;
+      return `${section.label}: ${normalized.join(", ")}`;
     })
     .filter(Boolean);
 
@@ -534,6 +740,7 @@ function refreshAll() {
   renderStats();
   renderDashboardInsights();
   renderCategories();
+  renderFolderFilters();
   renderImagePicker();
   renderComparisonGrid();
   renderActiveAnnotation();
@@ -563,13 +770,17 @@ function isAnnotated(image) {
 }
 
 function getImageAnnotationPercentage(image) {
-  const totalCriteria = MORPHOLOGY_QUESTIONS.length + 1; // all morphology sections + remarks
+  const totalCriteria = state.morphologySections.length + 1; // all morphology sections + remarks
   if (totalCriteria <= 0) {
     return 0;
   }
 
-  const morphologyCount = MORPHOLOGY_QUESTIONS.filter(
-    (question) => normalizeTag(image.annotation?.morphology?.[question.key]).length > 0
+  const morphologyCount = state.morphologySections.filter(
+    (section) => {
+      const values = image.annotation?.morphology?.[section.key];
+      const arr = Array.isArray(values) ? values : values ? [values] : [];
+      return arr.map(normalizeTag).filter(Boolean).length > 0;
+    }
   ).length;
   const hasRemarks = String(image.annotation?.description || "").trim().length > 0 ? 1 : 0;
   const completedCriteria = morphologyCount + hasRemarks;
@@ -676,8 +887,16 @@ function renderImagePicker() {
     return;
   }
 
+  const filteredImages = getFilteredImages();
   els.imagePickerList.className = "image-picker-list";
-  state.images.forEach((image) => {
+
+  if (filteredImages.length === 0) {
+    els.imagePickerList.className = "image-picker-list empty-state";
+    els.imagePickerList.textContent = "No image matched current search/folder filters.";
+    return;
+  }
+
+  filteredImages.forEach((image) => {
     const included = state.selectedForComparison.includes(image.id);
     const row = document.createElement("div");
     row.className = "picker-row";
@@ -872,15 +1091,16 @@ function renderComparisonGrid() {
     const zoomInBtn = fragment.querySelector(".zoom-in");
     const zoomOutBtn = fragment.querySelector(".zoom-out");
     const zoomResetDisplayBtn = fragment.querySelector(".zoom-reset-display");
+    const rotateLeftBtn = fragment.querySelector(".rotate-left");
+    const rotateRightBtn = fragment.querySelector(".rotate-right");
+    const flipHorizontalBtn = fragment.querySelector(".flip-horizontal");
 
-    const zoom = getZoom(image.id);
-    const pan = getPan(image.id);
     img.src = image.objectUrl;
     img.alt = image.file.name;
-    img.style.transform = `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`;
+    applyImageTransform(img, image.id);
     name.textContent = image.relativePath;
-    category.textContent = `${image.category} | zoom ${zoom.toFixed(1)}x | drag to move`;
-    zoomResetDisplayBtn.textContent = `${zoom.toFixed(1)}x`;
+    category.textContent = `${image.category} | scroll to zoom | drag to move`;
+    zoomResetDisplayBtn.textContent = `${getZoom(image.id).toFixed(1)}x`;
 
     if (state.activeImageId === image.id) {
       card.classList.add("active");
@@ -894,10 +1114,9 @@ function renderComparisonGrid() {
     });
 
     viewport.addEventListener("wheel", (event) => {
-      if (!event.altKey) return;
       event.preventDefault();
       event.stopPropagation();
-      const delta = event.deltaY < 0 ? 0.1 : -0.1;
+      const delta = event.deltaY < 0 ? 0.12 : -0.12;
       zoomImage(image.id, delta);
     }, { passive: false });
 
@@ -921,12 +1140,16 @@ function renderComparisonGrid() {
 
     zoomInBtn.addEventListener("click", (event) => {
       event.stopPropagation();
-      zoomImage(image.id, 0.2);
+      zoomImage(image.id, 0.24);
     });
 
     zoomOutBtn.addEventListener("click", (event) => {
       event.stopPropagation();
-      zoomImage(image.id, -0.2);
+      zoomImage(image.id, -0.24);
+    });
+
+    setupLongPressZoom(zoomInBtn, () => {
+      zoomImage(image.id, 0.24);
     });
 
     zoomResetDisplayBtn.addEventListener("click", (event) => {
@@ -934,10 +1157,26 @@ function renderComparisonGrid() {
       setZoom(image.id, 1);
     });
 
+    rotateLeftBtn.addEventListener("click", (event) => {
+      event.stopPropagation();
+      rotateImage(image.id, -90);
+    });
+
+    rotateRightBtn.addEventListener("click", (event) => {
+      event.stopPropagation();
+      rotateImage(image.id, 90);
+    });
+
+    flipHorizontalBtn.addEventListener("click", (event) => {
+      event.stopPropagation();
+      flipImageHorizontally(image.id);
+    });
+
     resetViewBtn.addEventListener("click", (event) => {
       event.stopPropagation();
       setZoom(image.id, 1);
       setPan(image.id, 0, 0);
+      setImageTransform(image.id, { rotation: 0, flipX: 1 });
       renderComparisonGrid();
     });
 
@@ -956,7 +1195,7 @@ function getZoom(imageId) {
 }
 
 function setZoom(imageId, value) {
-  const clamped = Math.max(0.4, Math.min(4, value));
+  const clamped = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, value));
   state.imageZoomById.set(imageId, clamped);
   renderComparisonGrid();
 }
@@ -971,6 +1210,71 @@ function getPan(imageId) {
 
 function setPan(imageId, x, y) {
   state.imagePanById.set(imageId, { x, y });
+}
+
+function getImageTransform(imageId) {
+  return state.imageTransformById.get(imageId) || { rotation: 0, flipX: 1 };
+}
+
+function setImageTransform(imageId, nextTransform) {
+  const current = getImageTransform(imageId);
+  state.imageTransformById.set(imageId, {
+    rotation: Number.isFinite(nextTransform.rotation) ? nextTransform.rotation : current.rotation,
+    flipX: nextTransform.flipX === -1 ? -1 : 1,
+  });
+}
+
+function rotateImage(imageId, deltaDegrees) {
+  const current = getImageTransform(imageId);
+  const nextRotation = ((current.rotation + deltaDegrees) % 360 + 360) % 360;
+  setImageTransform(imageId, { rotation: nextRotation, flipX: current.flipX });
+  renderComparisonGrid();
+}
+
+function flipImageHorizontally(imageId) {
+  const current = getImageTransform(imageId);
+  setImageTransform(imageId, { rotation: current.rotation, flipX: current.flipX === 1 ? -1 : 1 });
+  renderComparisonGrid();
+}
+
+function applyImageTransform(imgElement, imageId) {
+  const zoom = getZoom(imageId);
+  const pan = getPan(imageId);
+  const transform = getImageTransform(imageId);
+  imgElement.style.transform = `translate(${pan.x}px, ${pan.y}px) scale(${zoom}) rotate(${transform.rotation}deg) scaleX(${transform.flipX})`;
+}
+
+function setupLongPressZoom(button, onStep) {
+  let holdTimer = null;
+  let intervalId = null;
+
+  const clearAll = () => {
+    if (holdTimer) {
+      clearTimeout(holdTimer);
+      holdTimer = null;
+    }
+    if (intervalId) {
+      clearInterval(intervalId);
+      intervalId = null;
+    }
+  };
+
+  const start = () => {
+    clearAll();
+    holdTimer = setTimeout(() => {
+      intervalId = setInterval(() => {
+        onStep();
+      }, 120);
+    }, LONG_PRESS_MS);
+  };
+
+  button.addEventListener("pointerdown", (event) => {
+    event.stopPropagation();
+    start();
+  });
+  button.addEventListener("pointerup", clearAll);
+  button.addEventListener("pointerleave", clearAll);
+  button.addEventListener("pointercancel", clearAll);
 }
 
 function startImageDrag(event, imageId, viewport, imgElement) {
@@ -1002,8 +1306,7 @@ function updateImageDrag(event, imageId) {
   const nextX = drag.panStartX + dx;
   const nextY = drag.panStartY + dy;
   setPan(imageId, nextX, nextY);
-  const zoom = getZoom(imageId);
-  drag.imgElement.style.transform = `translate(${nextX}px, ${nextY}px) scale(${zoom})`;
+  applyImageTransform(drag.imgElement, imageId);
 }
 
 function finishImageDrag(event, imageId, viewport) {
@@ -1059,7 +1362,7 @@ function renderMorphologySections(activeAnswers = null) {
   }
 
   els.morphologySections.className = "morphology-sections";
-  MORPHOLOGY_QUESTIONS.forEach((question) => {
+  state.morphologySections.forEach((question) => {
     const section = document.createElement("div");
     section.className = "morphology-group";
 
@@ -1070,7 +1373,11 @@ function renderMorphologySections(activeAnswers = null) {
     const optionsRow = document.createElement("div");
     optionsRow.className = "morphology-option-row";
 
-    const selected = normalizeTag(activeAnswers[question.key]);
+    const selectedSet = new Set(
+      (Array.isArray(activeAnswers[question.key]) ? activeAnswers[question.key] : activeAnswers[question.key] ? [activeAnswers[question.key]] : [])
+        .map(normalizeTag)
+        .filter(Boolean)
+    );
     getAllOptions(question.key).forEach((option) => {
       const optionItem = document.createElement("div");
       optionItem.className = "morphology-option-item";
@@ -1080,7 +1387,7 @@ function renderMorphologySections(activeAnswers = null) {
       optionButton.className = "morphology-option";
       optionButton.textContent = option;
 
-      if (selected === option) {
+      if (selectedSet.has(option)) {
         optionButton.classList.add("selected");
       }
 
@@ -1164,9 +1471,9 @@ function deleteCustomMorphologyOption(sectionKey, option) {
 
   // Clear this option from all loaded images if they were using it.
   state.images.forEach((image) => {
-    if (normalizeTag(image.annotation.morphology[sectionKey]) === normalized) {
-      image.annotation.morphology[sectionKey] = "";
-    }
+    const values = image.annotation.morphology[sectionKey];
+    const arr = Array.isArray(values) ? values : values ? [values] : [];
+    image.annotation.morphology[sectionKey] = arr.map(normalizeTag).filter((value) => value && value !== normalized);
   });
 
   refreshAll();
@@ -1179,14 +1486,25 @@ function selectMorphologyOption(sectionKey, option) {
     return;
   }
 
-  const question = MORPHOLOGY_QUESTIONS.find((item) => item.key === sectionKey);
+  const question = getSectionByKey(sectionKey);
   const normalizedOption = normalizeTag(option);
   if (!question || !getAllOptions(sectionKey).includes(normalizedOption)) {
     return;
   }
 
-  const current = normalizeTag(image.annotation.morphology[sectionKey]);
-  image.annotation.morphology[sectionKey] = current === normalizedOption ? "" : normalizedOption;
+  const currentValues = image.annotation.morphology[sectionKey];
+  const arr = Array.isArray(currentValues)
+    ? currentValues.map(normalizeTag).filter(Boolean)
+    : currentValues
+      ? [normalizeTag(currentValues)]
+      : [];
+  const nextSet = new Set(arr);
+  if (nextSet.has(normalizedOption)) {
+    nextSet.delete(normalizedOption);
+  } else {
+    nextSet.add(normalizedOption);
+  }
+  image.annotation.morphology[sectionKey] = Array.from(nextSet);
 
   renderMorphologySections(image.annotation.morphology);
   updateActionButtons();
@@ -1235,8 +1553,16 @@ function renderLibraryList() {
     return;
   }
 
+  const filteredImages = getFilteredImages();
   els.libraryList.className = "library-list";
-  state.images.forEach((image) => {
+
+  if (filteredImages.length === 0) {
+    els.libraryList.className = "library-list empty-state";
+    els.libraryList.textContent = "No image matched current search/folder filters.";
+    return;
+  }
+
+  filteredImages.forEach((image) => {
     const fragment = els.libraryItemTemplate.content.cloneNode(true);
     const root = fragment.querySelector(".library-item");
     const img = fragment.querySelector("img");
@@ -1285,6 +1611,9 @@ function renderViewer() {
         <button type="button" class="viewer-zoom-out" aria-label="Zoom out">-</button>
         <button type="button" class="viewer-zoom-in" aria-label="Zoom in">+</button>
         <button type="button" class="viewer-zoom-level" aria-label="Current zoom level">1x</button>
+        <button type="button" class="viewer-rotate-left" aria-label="Rotate left">⟲</button>
+        <button type="button" class="viewer-rotate-right" aria-label="Rotate right">⟳</button>
+        <button type="button" class="viewer-flip-horizontal" aria-label="Flip horizontal">⇋</button>
         <button type="button" class="viewer-reset-view" aria-label="Reset view">Reset</button>
       </div>
       <div class="viewer-image-viewport" aria-label="Viewer image viewport">
@@ -1327,30 +1656,31 @@ function setupViewerInteractions(imageId) {
   const zoomInBtn = els.viewerContent.querySelector(".viewer-zoom-in");
   const zoomOutBtn = els.viewerContent.querySelector(".viewer-zoom-out");
   const zoomLevelBtn = els.viewerContent.querySelector(".viewer-zoom-level");
+  const rotateLeftBtn = els.viewerContent.querySelector(".viewer-rotate-left");
+  const rotateRightBtn = els.viewerContent.querySelector(".viewer-rotate-right");
+  const flipHorizontalBtn = els.viewerContent.querySelector(".viewer-flip-horizontal");
   const resetBtn = els.viewerContent.querySelector(".viewer-reset-view");
 
-  if (!viewport || !img || !zoomInBtn || !zoomOutBtn || !zoomLevelBtn || !resetBtn) {
+  if (!viewport || !img || !zoomInBtn || !zoomOutBtn || !zoomLevelBtn || !rotateLeftBtn || !rotateRightBtn || !flipHorizontalBtn || !resetBtn) {
     return;
   }
 
   const updateViewerTransform = () => {
+    applyImageTransform(img, imageId);
     const zoom = getZoom(imageId);
-    const pan = getPan(imageId);
-    img.style.transform = `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`;
     zoomLevelBtn.textContent = `${zoom.toFixed(1)}x`;
   };
 
   const zoomViewerBy = (delta) => {
-    const nextZoom = Math.max(0.4, Math.min(4, getZoom(imageId) + delta));
+    const nextZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, getZoom(imageId) + delta));
     state.imageZoomById.set(imageId, nextZoom);
     updateViewerTransform();
   };
 
   viewport.addEventListener("wheel", (event) => {
-    if (!event.altKey) return;
     event.preventDefault();
     event.stopPropagation();
-    zoomViewerBy(event.deltaY < 0 ? 0.1 : -0.1);
+    zoomViewerBy(event.deltaY < 0 ? 0.12 : -0.12);
   }, { passive: false });
 
   viewport.addEventListener("pointerdown", (event) => {
@@ -1373,12 +1703,16 @@ function setupViewerInteractions(imageId) {
 
   zoomInBtn.addEventListener("click", (event) => {
     event.stopPropagation();
-    zoomViewerBy(0.2);
+    zoomViewerBy(0.24);
   });
 
   zoomOutBtn.addEventListener("click", (event) => {
     event.stopPropagation();
-    zoomViewerBy(-0.2);
+    zoomViewerBy(-0.24);
+  });
+
+  setupLongPressZoom(zoomInBtn, () => {
+    zoomViewerBy(0.24);
   });
 
   zoomLevelBtn.addEventListener("click", (event) => {
@@ -1387,11 +1721,43 @@ function setupViewerInteractions(imageId) {
     updateViewerTransform();
   });
 
+  rotateLeftBtn.addEventListener("click", (event) => {
+    event.stopPropagation();
+    const current = getImageTransform(imageId);
+    setImageTransform(imageId, {
+      rotation: ((current.rotation - 90) % 360 + 360) % 360,
+      flipX: current.flipX,
+    });
+    updateViewerTransform();
+    renderComparisonGrid();
+  });
+
+  rotateRightBtn.addEventListener("click", (event) => {
+    event.stopPropagation();
+    const current = getImageTransform(imageId);
+    setImageTransform(imageId, {
+      rotation: ((current.rotation + 90) % 360 + 360) % 360,
+      flipX: current.flipX,
+    });
+    updateViewerTransform();
+    renderComparisonGrid();
+  });
+
+  flipHorizontalBtn.addEventListener("click", (event) => {
+    event.stopPropagation();
+    const current = getImageTransform(imageId);
+    setImageTransform(imageId, { rotation: current.rotation, flipX: current.flipX === 1 ? -1 : 1 });
+    updateViewerTransform();
+    renderComparisonGrid();
+  });
+
   resetBtn.addEventListener("click", (event) => {
     event.stopPropagation();
     state.imageZoomById.set(imageId, 1);
     setPan(imageId, 0, 0);
+    setImageTransform(imageId, { rotation: 0, flipX: 1 });
     updateViewerTransform();
+    renderComparisonGrid();
   });
 
   updateViewerTransform();
@@ -1401,6 +1767,11 @@ function buildAnnotationPayload() {
   return {
     createdAt: new Date().toISOString(),
     totalImages: state.images.length,
+    morphologySections: state.morphologySections.map((section) => ({
+      key: section.key,
+      label: section.label,
+      options: [...section.options],
+    })),
     customMorphologyOptions: state.customMorphologyOptions,
     items: state.images.map((image) => ({
       originalName: image.file.name,

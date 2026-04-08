@@ -108,6 +108,18 @@
               <h3>Image Picker</h3>
               <p>Choose up to 4 images</p>
             </div>
+            <div class="picker-filter-panel">
+              <label>
+                Search (multi-keyword)
+                <input id="filterSearchInput" type="text" placeholder="e.g. red rough colony_01">
+              </label>
+              <div class="filter-field-row">
+                <label><input id="filterFieldFilename" type="checkbox" checked> Filename</label>
+                <label><input id="filterFieldLabels" type="checkbox" checked> Labels</label>
+                <label><input id="filterFieldRemarks" type="checkbox" checked> Remarks</label>
+              </div>
+              <div id="filterFolderList" class="filter-folder-list empty-state">Load images to filter by folder.</div>
+            </div>
             <button id="resetPickerBtn" class="secondary-btn picker-reset-btn" type="button">Reset Selection</button>
             <div id="imagePickerList" class="image-picker-list empty-state">
               No images loaded.
@@ -133,6 +145,10 @@
 
             <div class="tag-section">
               <p>Bacteria Morphology</p>
+              <div class="morphology-global-create">
+                <input id="newSectionNameInput" type="text" placeholder="Create section (e.g. Texture Pattern)">
+                <button id="createSectionBtn" type="button" class="secondary-btn">Add Section</button>
+              </div>
               <div id="morphologySections" class="morphology-sections empty-state">No image selected.</div>
             </div>
           </form>
@@ -176,6 +192,9 @@
         <button type="button" class="zoom-out" aria-label="Zoom out">-</button>
         <button type="button" class="zoom-in" aria-label="Zoom in">+</button>
         <button type="button" class="zoom-reset-display" aria-label="Current zoom level">1x</button>
+        <button type="button" class="rotate-left" aria-label="Rotate left">⟲</button>
+        <button type="button" class="rotate-right" aria-label="Rotate right">⟳</button>
+        <button type="button" class="flip-horizontal" aria-label="Flip horizontal">⇋</button>
         <button type="button" class="reset-view" aria-label="Reset view">Reset</button>
         <button type="button" class="close-compare" aria-label="Close">Close</button>
       </div>

@@ -610,8 +610,11 @@ main {
   top: 0.4rem;
   right: 0.4rem;
   display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 0.35rem;
   z-index: 10;
+  max-width: min(95%, 460px);
 }
 
 .close-compare {
@@ -648,7 +651,10 @@ main {
 
 .zoom-in,
 .zoom-out,
-.zoom-reset-display {
+.zoom-reset-display,
+.rotate-left,
+.rotate-right,
+.flip-horizontal {
   border-radius: 999px;
   min-width: 40px;
   height: 36px;
@@ -660,13 +666,25 @@ main {
 }
 
 .zoom-in:hover,
-.zoom-out:hover {
+.zoom-out:hover,
+.rotate-left:hover,
+.rotate-right:hover,
+.flip-horizontal:hover {
   background: rgba(255, 255, 255, 1);
 }
 
 .zoom-reset-display {
   min-width: 52px;
   cursor: pointer;
+}
+
+.rotate-left,
+.rotate-right {
+  min-width: 42px;
+}
+
+.flip-horizontal {
+  min-width: 46px;
 }
 
 .zoom-reset-display:hover {
@@ -683,6 +701,51 @@ main {
 .picker-reset-btn {
   width: 100%;
   margin-bottom: 0.35rem;
+}
+
+.picker-filter-panel {
+  display: grid;
+  gap: 0.45rem;
+  margin-bottom: 0.4rem;
+}
+
+.picker-filter-panel label {
+  display: grid;
+  gap: 0.25rem;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.filter-field-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.filter-field-row label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: var(--ink);
+  font-size: 0.75rem;
+}
+
+.filter-folder-list {
+  max-height: 92px;
+  overflow-y: auto;
+  display: grid;
+  gap: 0.2rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.35rem;
+  background: var(--surface-2);
+}
+
+.folder-filter-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.75rem;
 }
 
 .picker-row {
@@ -849,8 +912,11 @@ main {
   top: 1.25rem;
   right: 1.25rem;
   display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 0.35rem;
   z-index: 2;
+  max-width: min(95%, 460px);
 }
 
 .viewer-image-controls button {
@@ -870,6 +936,16 @@ main {
 
 .viewer-zoom-level {
   min-width: 52px;
+}
+
+.viewer-rotate-left,
+.viewer-rotate-right,
+.viewer-flip-horizontal {
+  min-width: 42px;
+}
+
+.viewer-flip-horizontal {
+  min-width: 46px;
 }
 
 .viewer-reset-view {
@@ -987,6 +1063,19 @@ textarea:focus {
 .tag-section p {
   margin: 0 0 0.4rem;
   font-size: 0.88rem;
+}
+
+.morphology-global-create {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.4rem;
+  margin-bottom: 0.5rem;
+}
+
+.morphology-global-create button {
+  white-space: nowrap;
+  padding: 0.5rem 0.65rem;
+  font-size: 0.78rem;
 }
 
 .morphology-sections {
