@@ -654,7 +654,8 @@ main {
 .zoom-reset-display,
 .rotate-left,
 .rotate-right,
-.flip-horizontal {
+.flip-horizontal,
+.popout-image {
   border-radius: 999px;
   min-width: 40px;
   height: 36px;
@@ -669,7 +670,8 @@ main {
 .zoom-out:hover,
 .rotate-left:hover,
 .rotate-right:hover,
-.flip-horizontal:hover {
+.flip-horizontal:hover,
+.popout-image:hover {
   background: rgba(255, 255, 255, 1);
 }
 
@@ -685,6 +687,11 @@ main {
 
 .flip-horizontal {
   min-width: 46px;
+}
+
+.popout-image {
+  min-width: 72px;
+  font-size: 0.74rem;
 }
 
 .zoom-reset-display:hover {
@@ -965,6 +972,20 @@ main {
 .library-meta p {
   margin: 0;
   font-size: 0.83rem;
+}
+
+.library-item-actions {
+  margin-top: 0.35rem;
+}
+
+.library-popout {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--ink);
+  font-size: 0.73rem;
+  padding: 0.3rem 0.58rem;
+  min-height: 30px;
 }
 
 .library-name {

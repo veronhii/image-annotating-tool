@@ -195,6 +195,7 @@
         <button type="button" class="rotate-left" aria-label="Rotate left">⟲</button>
         <button type="button" class="rotate-right" aria-label="Rotate right">⟳</button>
         <button type="button" class="flip-horizontal" aria-label="Flip horizontal">⇋</button>
+        <button type="button" class="popout-image" aria-label="Pop out image">Pop out</button>
         <label class="rotate-angle-control" aria-label="Rotate angle">
           <span class="rotate-angle-value">0deg</span>
           <input type="range" class="rotate-angle-slider" min="-180" max="180" step="1" value="0">
@@ -219,6 +220,9 @@
         <p class="library-name"></p>
         <p class="library-path"></p>
         <p class="library-tags"></p>
+        <div class="library-item-actions">
+          <button type="button" class="library-popout">Pop out</button>
+        </div>
       </div>
     </article>
   </template>

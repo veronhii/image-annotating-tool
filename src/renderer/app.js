@@ -67,6 +67,7 @@ const state = {
     remarks: true,
   },
   selectedFolders: [],
+  popupWindowsByImageId: new Map(),
 };
 
 const els = {
@@ -142,6 +143,7 @@ async function initialize() {
     }
   });
   state.dataFileHandle = await readDataFileHandle();
+  window.addEventListener("beforeunload", closeAllPopoutWindows);
   renderMorphologySections();
   showView("dashboard");
   refreshAll();
@@ -684,10 +686,333 @@ function getMorphologySummary(image) {
 }
 
 function clearObjectUrls() {
+  closeAllPopoutWindows();
   state.images.forEach((image) => {
     if (image.objectUrl) {
       URL.revokeObjectURL(image.objectUrl);
     }
+  });
+}
+
+function closeAllPopoutWindows() {
+  state.popupWindowsByImageId.forEach((popupWindow) => {
+    try {
+      if (popupWindow && !popupWindow.closed) {
+        popupWindow.close();
+      }
+    } catch {
+      // Ignore cross-window lifecycle race.
+    }
+  });
+  state.popupWindowsByImageId.clear();
+}
+
+function buildPopoutDocumentHtml(image) {
+  const safeTitle = escapeHtml(image.relativePath || image.file.name);
+  const safeCategory = escapeHtml(image.category || "uncategorized");
+  const imageSrc = escapeHtml(image.objectUrl);
+
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${safeTitle}</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f5efe4;
+      --ink: #1f2733;
+      --line: #d3c9b7;
+      --card: #fffcf7;
+      --muted: #5f6877;
+      --accent: #cf7538;
+      --accent-strong: #ad5b24;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Tahoma, sans-serif;
+      color: var(--ink);
+      background: radial-gradient(circle at 15% 20%, #fff2d5 0%, transparent 48%), linear-gradient(160deg, var(--bg), #e9e0d0);
+      min-height: 100vh;
+      display: grid;
+      grid-template-rows: auto 1fr;
+    }
+    .toolbar {
+      position: sticky;
+      top: 0;
+      z-index: 5;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.65rem;
+      border-bottom: 1px solid var(--line);
+      background: rgba(255, 251, 244, 0.94);
+      backdrop-filter: blur(8px);
+    }
+    .toolbar button {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 0.38rem 0.62rem;
+      min-width: 42px;
+      background: var(--card);
+      color: var(--ink);
+      cursor: pointer;
+      font-size: 0.8rem;
+      font-weight: 600;
+    }
+    .toolbar button:hover { border-color: var(--accent); }
+    .zoom-label,
+    .angle-label {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 0.38rem 0.58rem;
+      min-width: 62px;
+      text-align: center;
+      background: var(--card);
+      font-size: 0.75rem;
+      color: var(--muted);
+      font-weight: 600;
+    }
+    .angle-wrap {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 0.18rem 0.45rem;
+      background: var(--card);
+    }
+    .angle-wrap input {
+      accent-color: var(--accent);
+      width: 130px;
+    }
+    .stage {
+      display: grid;
+      grid-template-rows: 1fr auto;
+      min-height: 0;
+      padding: 0.7rem;
+      gap: 0.55rem;
+    }
+    .viewport {
+      position: relative;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      overflow: hidden;
+      background: #efe6d5;
+      cursor: grab;
+      min-height: 320px;
+    }
+    .viewport.dragging { cursor: grabbing; }
+    .image {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      transform-origin: center center;
+      user-select: none;
+      pointer-events: none;
+    }
+    .meta {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 0.5rem 0.65rem;
+      background: var(--card);
+      color: var(--muted);
+      font-size: 0.8rem;
+      line-height: 1.35;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+  </style>
+</head>
+<body>
+  <div class="toolbar">
+    <button id="zoomOut" type="button">-</button>
+    <button id="zoomIn" type="button">+</button>
+    <span id="zoomLabel" class="zoom-label">1.0x</span>
+    <button id="rotateLeft" type="button">⟲</button>
+    <button id="rotateRight" type="button">⟳</button>
+    <button id="flipHorizontal" type="button">⇋</button>
+    <div class="angle-wrap">
+      <span id="angleLabel" class="angle-label">0deg</span>
+      <input id="angleSlider" type="range" min="-180" max="180" step="1" value="0">
+    </div>
+    <button id="resetView" type="button">Reset</button>
+  </div>
+  <div class="stage">
+    <div id="viewport" class="viewport">
+      <img id="image" class="image" src="${imageSrc}" alt="${safeTitle}">
+    </div>
+    <div class="meta">${safeTitle} | ${safeCategory} | scroll to zoom | drag to pan</div>
+  </div>
+  <script>
+    const MIN_ZOOM = ${MIN_ZOOM};
+    const MAX_ZOOM = ${MAX_ZOOM};
+    const LONG_PRESS_MS = ${LONG_PRESS_MS};
+
+    let zoom = 1;
+    let panX = 0;
+    let panY = 0;
+    let rotation = 0;
+    let flipX = 1;
+    let dragState = null;
+
+    const viewport = document.getElementById("viewport");
+    const image = document.getElementById("image");
+    const zoomOut = document.getElementById("zoomOut");
+    const zoomIn = document.getElementById("zoomIn");
+    const zoomLabel = document.getElementById("zoomLabel");
+    const rotateLeft = document.getElementById("rotateLeft");
+    const rotateRight = document.getElementById("rotateRight");
+    const flipHorizontal = document.getElementById("flipHorizontal");
+    const angleLabel = document.getElementById("angleLabel");
+    const angleSlider = document.getElementById("angleSlider");
+    const resetView = document.getElementById("resetView");
+
+    function applyTransform() {
+      image.style.transform = "translate(" + panX + "px, " + panY + "px) scale(" + zoom + ") rotate(" + rotation + "deg) scaleX(" + flipX + ")";
+      zoomLabel.textContent = zoom.toFixed(1) + "x";
+      angleLabel.textContent = rotation + "deg";
+      angleSlider.value = String(rotation);
+    }
+
+    function setZoom(next) {
+      zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, next));
+      applyTransform();
+    }
+
+    function zoomBy(delta) {
+      setZoom(zoom + delta);
+    }
+
+    function setupLongPress(button, onStep) {
+      let holdTimer = null;
+      let intervalId = null;
+      const clearAll = () => {
+        if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; }
+        if (intervalId) { clearInterval(intervalId); intervalId = null; }
+      };
+      button.addEventListener("pointerdown", () => {
+        clearAll();
+        holdTimer = setTimeout(() => {
+          intervalId = setInterval(onStep, 120);
+        }, LONG_PRESS_MS);
+      });
+      button.addEventListener("pointerup", clearAll);
+      button.addEventListener("pointerleave", clearAll);
+      button.addEventListener("pointercancel", clearAll);
+    }
+
+    viewport.addEventListener("wheel", (event) => {
+      event.preventDefault();
+      zoomBy(event.deltaY < 0 ? 0.12 : -0.12);
+    }, { passive: false });
+
+    viewport.addEventListener("pointerdown", (event) => {
+      event.preventDefault();
+      dragState = {
+        pointerId: event.pointerId,
+        startX: event.clientX,
+        startY: event.clientY,
+        panStartX: panX,
+        panStartY: panY,
+      };
+      viewport.classList.add("dragging");
+      if (viewport.setPointerCapture) {
+        viewport.setPointerCapture(event.pointerId);
+      }
+    });
+
+    viewport.addEventListener("pointermove", (event) => {
+      if (!dragState || dragState.pointerId !== event.pointerId) {
+        return;
+      }
+      panX = dragState.panStartX + (event.clientX - dragState.startX);
+      panY = dragState.panStartY + (event.clientY - dragState.startY);
+      applyTransform();
+    });
+
+    const stopDrag = (event) => {
+      if (!dragState || dragState.pointerId !== event.pointerId) {
+        return;
+      }
+      dragState = null;
+      viewport.classList.remove("dragging");
+      if (viewport.releasePointerCapture && viewport.hasPointerCapture(event.pointerId)) {
+        viewport.releasePointerCapture(event.pointerId);
+      }
+    };
+
+    viewport.addEventListener("pointerup", stopDrag);
+    viewport.addEventListener("pointercancel", stopDrag);
+    viewport.addEventListener("pointerleave", stopDrag);
+
+    zoomIn.addEventListener("click", () => zoomBy(0.24));
+    zoomOut.addEventListener("click", () => zoomBy(-0.24));
+    setupLongPress(zoomIn, () => zoomBy(0.24));
+
+    rotateLeft.addEventListener("click", () => {
+      rotation = Math.max(-180, Math.min(180, rotation - 90));
+      applyTransform();
+    });
+    rotateRight.addEventListener("click", () => {
+      rotation = Math.max(-180, Math.min(180, rotation + 90));
+      applyTransform();
+    });
+    flipHorizontal.addEventListener("click", () => {
+      flipX = flipX === 1 ? -1 : 1;
+      applyTransform();
+    });
+
+    angleSlider.addEventListener("input", (event) => {
+      const raw = Number(event.target.value);
+      rotation = Number.isFinite(raw) ? Math.max(-180, Math.min(180, Math.round(raw))) : 0;
+      applyTransform();
+    });
+
+    resetView.addEventListener("click", () => {
+      zoom = 1;
+      panX = 0;
+      panY = 0;
+      rotation = 0;
+      flipX = 1;
+      applyTransform();
+    });
+
+    applyTransform();
+  <\/script>
+</body>
+</html>`;
+}
+
+function openImagePopout(imageId) {
+  const image = getImageById(imageId);
+  if (!image) {
+    return;
+  }
+
+  const existing = state.popupWindowsByImageId.get(imageId);
+  if (existing && !existing.closed) {
+    existing.focus();
+    return;
+  }
+
+  const popupWindow = window.open("", `_imagePopout_${imageId}`, "popup=yes,width=1200,height=820,resizable=yes,scrollbars=no");
+  if (!popupWindow) {
+    window.alert("Pop-out window was blocked. Please allow popups and try again.");
+    return;
+  }
+
+  popupWindow.document.open();
+  popupWindow.document.write(buildPopoutDocumentHtml(image));
+  popupWindow.document.close();
+  state.popupWindowsByImageId.set(imageId, popupWindow);
+
+  popupWindow.addEventListener("beforeunload", () => {
+    state.popupWindowsByImageId.delete(imageId);
   });
 }
 
@@ -1094,6 +1419,7 @@ function renderComparisonGrid() {
     const rotateLeftBtn = fragment.querySelector(".rotate-left");
     const rotateRightBtn = fragment.querySelector(".rotate-right");
     const flipHorizontalBtn = fragment.querySelector(".flip-horizontal");
+    const popoutBtn = fragment.querySelector(".popout-image");
     const rotateAngleSlider = fragment.querySelector(".rotate-angle-slider");
     const rotateAngleValue = fragment.querySelector(".rotate-angle-value");
 
@@ -1175,6 +1501,11 @@ function renderComparisonGrid() {
     flipHorizontalBtn.addEventListener("click", (event) => {
       event.stopPropagation();
       flipImageHorizontally(image.id);
+    });
+
+    popoutBtn.addEventListener("click", (event) => {
+      event.stopPropagation();
+      openImagePopout(image.id);
     });
 
     rotateAngleSlider.addEventListener("input", (event) => {
@@ -1597,6 +1928,7 @@ function renderLibraryList() {
     const name = fragment.querySelector(".library-name");
     const path = fragment.querySelector(".library-path");
     const morphology = fragment.querySelector(".library-tags");
+    const popoutBtn = fragment.querySelector(".library-popout");
 
     img.src = image.objectUrl;
     img.alt = image.file.name;
@@ -1607,6 +1939,11 @@ function renderLibraryList() {
     root.addEventListener("click", () => {
       state.viewerImageId = image.id;
       showView("viewer");
+    });
+
+    popoutBtn.addEventListener("click", (event) => {
+      event.stopPropagation();
+      openImagePopout(image.id);
     });
 
     els.libraryList.appendChild(fragment);
