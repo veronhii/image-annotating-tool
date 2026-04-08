@@ -344,10 +344,10 @@ function onFilterInputChange() {
   renderLibraryList();
 }
 
-function getTopFolderName(image) {
+function getCategoryFolderName(image) {
   const normalized = normalizeRelativePath(image?.relativePath || "");
   const parts = normalized.split("/").filter(Boolean);
-  return parts.length > 1 ? parts[0] : "(root)";
+  return parts.length > 1 ? parts[parts.length - 2] : "(root)";
 }
 
 function getSearchKeywords() {
@@ -375,7 +375,7 @@ function getFilteredImages() {
   const keywords = getSearchKeywords();
   const selectedFolders = new Set(state.selectedFolders);
   return state.images.filter((image) => {
-    if (selectedFolders.size > 0 && !selectedFolders.has(getTopFolderName(image))) {
+    if (selectedFolders.size > 0 && !selectedFolders.has(getCategoryFolderName(image))) {
       return false;
     }
 
@@ -404,11 +404,11 @@ function renderFolderFilters() {
   els.filterFolderList.innerHTML = "";
   if (state.images.length === 0) {
     els.filterFolderList.className = "filter-folder-list empty-state";
-    els.filterFolderList.textContent = "Load images to filter by folder.";
+    els.filterFolderList.textContent = "Load images to filter by category folder.";
     return;
   }
 
-  const folders = Array.from(new Set(state.images.map((image) => getTopFolderName(image)))).sort((a, b) => a.localeCompare(b));
+  const folders = Array.from(new Set(state.images.map((image) => getCategoryFolderName(image)))).sort((a, b) => a.localeCompare(b));
   els.filterFolderList.className = "filter-folder-list";
   folders.forEach((folderName) => {
     const label = document.createElement("label");
@@ -1184,8 +1184,18 @@ function renderComparisonGrid() {
       const current = getImageTransform(image.id);
       setImageTransform(image.id, { rotation: angle, flipX: current.flipX });
       rotateAngleValue.textContent = `${angle}deg`;
-      renderComparisonGrid();
-      renderViewer();
+      applyImageTransform(img, image.id);
+      if (state.currentView === "viewer" && state.viewerImageId === image.id) {
+        renderViewer();
+      }
+    });
+
+    rotateAngleSlider.addEventListener("pointerdown", (event) => {
+      event.stopPropagation();
+    });
+
+    rotateAngleSlider.addEventListener("click", (event) => {
+      event.stopPropagation();
     });
 
     resetViewBtn.addEventListener("click", (event) => {
